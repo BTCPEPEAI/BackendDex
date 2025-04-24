@@ -7,12 +7,16 @@ const CommunityVote = require('../models/CommunityVote');
 const axios = require('axios');
 
 
-exports.getLivePrices = async (req, res) => {
-  const { contracts = [] } = req.body;
-
-  const data = getMultiplePrices(contracts);
-  res.json({ prices: data });
+const getLivePrices = async (req, res) => {
+  try {
+    const prices = await fetchLivePrices(); // your logic here
+    res.json(prices);
+  } catch (error) {
+    console.error('Live Prices Error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch live prices' });
+  }
 };
+
 
 // Search by name, symbol, contract
 exports.searchCoins = async (req, res) => {
@@ -176,4 +180,12 @@ exports.getTradeHistory = async (req, res) => {
     console.error('Error fetching trade history:', error.message);
     res.status(500).json({ error: 'Failed to fetch trade history' });
   }
+};
+
+
+module.exports = {
+  getTrendingCoins,
+  getCoinByAddress,
+  getLivePrices, // ✅ MUST BE EXPORTED
+  getAllCoins
 };
