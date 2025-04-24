@@ -7,7 +7,7 @@ const {
   getPumpFunData,
 } = require('../controllers/homepageController');
 
-const { verifyAdmin } = require('../middleware/auth'); // ✅ FIXED: was incorrect path 'middlewares/auth'
+const { verifyAdmin } = require('../middlewares/auth'); // ✅ FIXED: was incorrect path 'middlewares/auth'
 
 /**
  * Public Routes
