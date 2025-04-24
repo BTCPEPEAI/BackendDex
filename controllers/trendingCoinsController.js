@@ -1,4 +1,5 @@
-const TrendingCoin = require('@/models/TrendingCoin');
+const TrendingCoin = require('../models/TrendingCoin');
+
 
 // GET: Fetch all trending coins (sorted)
 exports.getTrendingCoins = async (req, res) => {
