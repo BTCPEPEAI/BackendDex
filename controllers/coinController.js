@@ -6,10 +6,10 @@ const { getCoinData } = require('../services/coinService');
 const CommunityVote = require('../models/CommunityVote');
 const axios = require('axios');
 
-
+// ✅ GET /api/coin/live-prices
 const getLivePrices = async (req, res) => {
   try {
-    const prices = await fetchLivePrices(); // your logic here
+    const prices = await getMultiplePrices(); // Or your own logic
     res.json(prices);
   } catch (error) {
     console.error('Live Prices Error:', error.message);
@@ -17,9 +17,8 @@ const getLivePrices = async (req, res) => {
   }
 };
 
-
-// Search by name, symbol, contract
-exports.searchCoins = async (req, res) => {
+// ✅ GET /api/coin/search?q=
+const searchCoins = async (req, res) => {
   const { q } = req.query;
   const regex = new RegExp(q, 'i');
 
@@ -34,8 +33,8 @@ exports.searchCoins = async (req, res) => {
   res.json(coins);
 };
 
-// Get coins by category, show only admin-managed ones
-exports.getCategoryCoins = async (req, res) => {
+// ✅ GET /api/coin/category/:category
+const getCategoryCoins = async (req, res) => {
   const { category } = req.params;
 
   const adminEntry = await AdminCoin.findOne({ category });
@@ -45,32 +44,10 @@ exports.getCategoryCoins = async (req, res) => {
   res.json(coins);
 };
 
-// Get coins by category (admin-managed)
-exports.getCoinsByCategory = async (req, res) => {
-  const { category } = req.params;
-
-  const entry = await AdminCoin.findOne({ category });
-  if (!entry) return res.json({ coins: [] });
-
-  const coinsData = await Promise.all(entry.coins.map(async (contract) => {
-    const coinInfo = await fetchFromCoinGecko(contract);
-    if (!coinInfo) return null;
-
-    const extra = await fetchExtraData(contract);
-    return {
-      ...coinInfo,
-      contract,
-      liquidity: extra?.liquidity || null,
-    };
-  }));
-
-  const validCoins = coinsData.filter(Boolean);
-  res.json({ coins: validCoins });
-};
-
-exports.fetchCoinDataFiltered = async (req, res) => {
+// ✅ POST /api/coin/fetch
+const fetchCoinDataFiltered = async (req, res) => {
   const {
-    coins = [], // array of contract addresses
+    coins = [],
     network = 'ethereum',
     limit = 50,
     query = '',
@@ -98,10 +75,10 @@ exports.fetchCoinDataFiltered = async (req, res) => {
 
         if (showMarketCap) result.marketCap = baseData.marketCap;
         if (show24hChange) result.change24h = baseData.change24h;
-        if (showAudit) result.audit = 'Not Audited'; // example value
-        if (showDexInfo) result.dex = 'DEX info here'; // placeholder
-        if (showPoolCreated) result.poolCreated = '2023-05-01'; // example
-        if (showCharts) result.chartData = []; // placeholder for chart
+        if (showAudit) result.audit = 'Not Audited';
+        if (showDexInfo) result.dex = 'DEX info here';
+        if (showPoolCreated) result.poolCreated = '2023-05-01';
+        if (showCharts) result.chartData = [];
 
         return result;
       })
@@ -114,7 +91,8 @@ exports.fetchCoinDataFiltered = async (req, res) => {
   }
 };
 
-exports.getCoinPage = async (req, res) => {
+// ✅ GET /api/coin/:contract
+const getCoinPage = async (req, res) => {
   try {
     const { contract } = req.params;
     const { chain = 'eth' } = req.query;
@@ -133,23 +111,23 @@ exports.getCoinPage = async (req, res) => {
   }
 };
 
-exports.voteCoin = async (req, res) => {
+// ✅ POST /api/coin/vote
+const voteCoin = async (req, res) => {
   const { contract, wallet, vote } = req.body;
   const newVote = await CommunityVote.create({ contract, wallet, vote });
   res.json(newVote);
 };
 
-// Top holders
-exports.getTopHolders = async (req, res) => {
+// ✅ GET /api/coin/top-holders?contract=...&network=...
+const getTopHolders = async (req, res) => {
   const { contract, network } = req.query;
 
   try {
-    // Placeholder: replace with actual Moralis or explorer API call
     const response = await axios.get(`https://api.moralis.io/top-holders?chain=${network}&address=${contract}`, {
       headers: { 'X-API-Key': process.env.MORALIS_API_KEY }
     });
 
-    const holders = response.data.slice(0, 10); // Top 10
+    const holders = response.data.slice(0, 10);
     res.json(holders);
   } catch (error) {
     console.error('Error fetching top holders:', error.message);
@@ -157,8 +135,8 @@ exports.getTopHolders = async (req, res) => {
   }
 };
 
-// Trade History from blockchain explorer (simplified)
-exports.getTradeHistory = async (req, res) => {
+// ✅ GET /api/coin/trade-history?contract=...&network=...
+const getTradeHistory = async (req, res) => {
   const { contract, network } = req.query;
 
   try {
@@ -173,7 +151,7 @@ exports.getTradeHistory = async (req, res) => {
     }
 
     const response = await axios.get(apiUrl);
-    const txns = response.data.result?.slice(0, 20); // Latest 20 transactions
+    const txns = response.data.result?.slice(0, 20);
 
     res.json(txns);
   } catch (error) {
@@ -182,7 +160,13 @@ exports.getTradeHistory = async (req, res) => {
   }
 };
 
-
 module.exports = {
-  getLivePrices
+  getLivePrices,
+  searchCoins,
+  getCategoryCoins,
+  fetchCoinDataFiltered,
+  getCoinPage,
+  voteCoin,
+  getTopHolders,
+  getTradeHistory
 };
