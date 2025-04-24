@@ -1,19 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { searchCoins, getCategoryCoins } = require('../controllers/coinController');
-const { fetchCoinDataFiltered } = require('../controllers/coinController');
-const coinCtrl = require('../controllers/coinController');
-const coinController = require('../controllers/coinController');
-const { getLivePrices } = require('../controllers/coinController');
 
-router.get('/:contract', coinCtrl.getCoinPage);       // /api/coin/:contract?chain=eth
-router.post('/vote', coinCtrl.voteCoin);              // /api/coin/vote
+const {
+  getLivePrices,
+  searchCoins,
+  getCategoryCoins,
+  fetchCoinDataFiltered,
+  getCoinPage,
+  voteCoin,
+  getTopHolders,
+  getTradeHistory
+} = require('../controllers/coinController');
+
+// Public Routes
 router.get('/search', searchCoins);
 router.get('/category/:category', getCategoryCoins);
-router.post('/fetch', fetchCoinDataFiltered); // POST /api/coins/fetch
-router.post('/live-prices', getLivePrices); // POST /api/coins/live-prices
-router.get('/top-holders', coinController.getTopHolders);      // /api/coin/top-holders?contract=...&network=...
-router.get('/trade-history', coinController.getTradeHistory);  // /api/coin/trade-history?contract=...&network=...
+router.post('/fetch', fetchCoinDataFiltered);
+router.post('/live-prices', getLivePrices);
+router.get('/top-holders', getTopHolders);
+router.get('/trade-history', getTradeHistory);
 
+// Dynamic
+router.get('/:contract', getCoinPage);
+router.post('/vote', voteCoin);
 
 module.exports = router;
