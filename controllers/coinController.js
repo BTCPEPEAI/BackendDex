@@ -184,7 +184,7 @@ exports.getTradeHistory = async (req, res) => {
 
 
 module.exports = {
-  getTrendingCoins,
+
   getCoinByAddress,
   getLivePrices, // ✅ MUST BE EXPORTED
   getAllCoins
