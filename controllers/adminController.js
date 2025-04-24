@@ -106,5 +106,9 @@ const updateApplicationStatus = async (req, res) => {
 module.exports = {
   getDashboardStats,
   listApplications,
-  updateApplicationStatus
+  updateApplicationStatus,
+  registerAdmin,
+  loginAdmin,
+  setAdminCategory,
+  setCategoryCoins
 };
