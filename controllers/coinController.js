@@ -184,5 +184,5 @@ exports.getTradeHistory = async (req, res) => {
 
 
 module.exports = {
-  getLivePrices, 
+  getLivePrices
 };
