@@ -4,7 +4,7 @@ const { searchCoins, getCategoryCoins } = require('../controllers/coinController
 const { fetchCoinDataFiltered } = require('../controllers/coinController');
 const coinCtrl = require('../controllers/coinController');
 const coinController = require('../controllers/coinController');
-
+const { getLivePrices } = require('../controllers/coinController');
 
 router.get('/:contract', coinCtrl.getCoinPage);       // /api/coin/:contract?chain=eth
 router.post('/vote', coinCtrl.voteCoin);              // /api/coin/vote
