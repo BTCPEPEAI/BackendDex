@@ -10,7 +10,6 @@ router.get('/:contract', coinCtrl.getCoinPage);       // /api/coin/:contract?cha
 router.post('/vote', coinCtrl.voteCoin);              // /api/coin/vote
 router.get('/search', searchCoins);
 router.get('/category/:category', getCategoryCoins);
-router.get('/category/:category', getCoinsByCategory);
 router.post('/fetch', fetchCoinDataFiltered); // POST /api/coins/fetch
 router.post('/live-prices', getLivePrices); // POST /api/coins/live-prices
 router.get('/top-holders', coinController.getTopHolders);      // /api/coin/top-holders?contract=...&network=...
