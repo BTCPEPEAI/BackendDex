@@ -1,18 +1,23 @@
 const express = require('express');
 const router = express.Router();
+
 const {
   getHomepageBox,
   updateHomepageBox,
-  getPumpFunData
+  getPumpFunData,
 } = require('../controllers/homepageController');
-const { verifyAdmin } = require('../middlewares/auth');
 
-// Public
+const { verifyAdmin } = require('../middleware/auth'); // ✅ FIXED: was incorrect path 'middlewares/auth'
+
+/**
+ * Public Routes
+ */
 router.get('/box/:type', getHomepageBox);         // GET /api/homepage/box/trending
 router.get('/pumpfun', getPumpFunData);           // GET /api/homepage/pumpfun
-router.post('/box/update', verifyAdmin, updateHomepageBox);
 
-// Admin
-router.post('/box/update', updateHomepageBox);    // POST /api/homepage/box/update
+/**
+ * Admin Route
+ */
+router.post('/box/update', verifyAdmin, updateHomepageBox); // POST /api/homepage/box/update
 
 module.exports = router;
