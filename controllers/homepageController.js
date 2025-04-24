@@ -2,8 +2,8 @@ const HomeBox = require('../models/HomeBox');
 const { fetchFromCoinGecko } = require('../services/externalApiService');
 const { fetchFromPumpFun } = require('../services/pumpfunService');
 
-// Get coins from a specific box
-exports.getHomepageBox = async (req, res) => {
+// ✅ Get coins from a specific box
+const getHomepageBox = async (req, res) => {
   const { type } = req.params;
 
   try {
@@ -23,8 +23,8 @@ exports.getHomepageBox = async (req, res) => {
   }
 };
 
-// Admin can update a box
-exports.updateHomepageBox = async (req, res) => {
+// ✅ Admin can update a box
+const updateHomepageBox = async (req, res) => {
   const { type, coins, network = 'ethereum' } = req.body;
 
   try {
@@ -40,8 +40,8 @@ exports.updateHomepageBox = async (req, res) => {
   }
 };
 
-// Live Pump.fun data
-exports.getPumpFunData = async (req, res) => {
+// ✅ Live Pump.fun data
+const getPumpFunData = async (req, res) => {
   try {
     const data = await fetchFromPumpFun();
     res.json({ coins: data });
@@ -50,6 +50,7 @@ exports.getPumpFunData = async (req, res) => {
   }
 };
 
+// ✅ Export them all together
 module.exports = {
   getHomepageBox,
   updateHomepageBox,
