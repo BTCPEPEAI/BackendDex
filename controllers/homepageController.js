@@ -49,3 +49,9 @@ exports.getPumpFunData = async (req, res) => {
     res.status(500).json({ error: 'Pump.fun fetch failed' });
   }
 };
+
+module.exports = {
+  getHomepageBox,
+  updateHomepageBox,
+  getPumpFunData
+};
