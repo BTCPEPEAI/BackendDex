@@ -26,10 +26,8 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
 
 // After other routes
-const adminRoutes = require('./routes/adminRoutes');
 app.use('/api/admin', adminRoutes);
 
-const walletRoutes = require('./routes/walletRoutes');
 app.use('/api/wallet', walletRoutes);
 
 const { startPriceUpdater } = require('./jobs/priceUpdater');
