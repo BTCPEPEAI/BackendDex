@@ -5,7 +5,7 @@ const {
   updateHomepageBox,
   getPumpFunData
 } = require('../controllers/homepageController');
-const { verifyAdmin } = require('../middleware/auth');
+const { verifyAdmin } = require('../middlewares/auth');
 
 // Public
 router.get('/box/:type', getHomepageBox);         // GET /api/homepage/box/trending
