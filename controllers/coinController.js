@@ -1,7 +1,6 @@
 const Coin = require('../models/Coin');
 const AdminCoin = require('../models/AdminCoin');
 const { fetchFromCoinGecko, fetchExtraData } = require('../services/externalApiService');
-const { fetchFromCoinGecko } = require('../services/externalApiService');
 const { getMultiplePrices } = require('../services/priceCache');
 const { getCoinData } = require('../services/coinService');
 const CommunityVote = require('../models/CommunityVote');
