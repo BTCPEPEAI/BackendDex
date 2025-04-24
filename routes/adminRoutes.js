@@ -8,7 +8,7 @@ const {
     loginAdmin
   } = require('../controllers/adminController');
   const adminController = require('../controllers/adminController');
-  const auth = require('../middleware/auth');
+  const auth = require('../middlewares/auth');
 
   
 router.post('/set-category', setAdminCategory);
