@@ -35,8 +35,6 @@ exports.setCategoryCoins = async (req, res) => {
 };
 
 
-const AdminCoin = require('../models/AdminCoin');
-
 // Admin sets coins for a category
 exports.setAdminCategory = async (req, res) => {
   const { category, coins } = req.body;
