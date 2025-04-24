@@ -19,6 +19,5 @@ router.get('/pumpfun', getPumpFunData);           // GET /api/homepage/pumpfun
 /**
  * Admin Route
  */
-router.post('/box/update', verifyAdmin, updateHomepageBox); // POST /api/homepage/box/update
 
 module.exports = router;
