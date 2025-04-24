@@ -1,15 +1,17 @@
 const express = require('express');
 const router = express.Router();
+
 const {
   getHomepageBox,
   updateHomepageBox,
   getPumpFunData
 } = require('../controllers/homepageController');
 
-const { verifyAdmin } = require('../middlewares/auth');
+const auth = require('../middlewares/auth');
 
-router.get('/box/:type', getHomepageBox);       // GET /api/homepage/box/trending
-router.get('/pumpfun', getPumpFunData);         // GET /api/homepage/pumpfun
-router.post('/box/update', verifyAdmin, updateHomepageBox);  // ✅ Fix here
+// Routes
+router.get('/box/:type', getHomepageBox);        // Public: GET /api/homepage/box/trending
+router.post('/box/update', auth, updateHomepageBox);  // Admin only
+router.get('/pumpfun', getPumpFunData);          // Public: GET /api/homepage/pumpfun
 
 module.exports = router;
