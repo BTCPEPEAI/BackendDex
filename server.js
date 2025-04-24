@@ -81,7 +81,6 @@ app.use('/api/users', usersRoutes);
 app.use('/api/applications', appsRoutes);
 
 
-const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 
 const walletRoutes = require('./routes/walletRoutes')
