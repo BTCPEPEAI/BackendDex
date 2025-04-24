@@ -1,66 +1,45 @@
-const axios = require('axios');
-const PriceCache = require('../models/PriceCache');
+const Coin = require('../models/Coin');
+const { fetchFromCoinGecko } = require('../services/externalApiService');
 
-const trackedContracts = [
-  { contract: '0xdAC17F...', platform: 'ethereum' },
-  { contract: '0xA0b869...', platform: 'ethereum' }
-];
-
-// Delay function
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Check DB for existing data (fresh = updated within 5 mins)
-const getCachedPrice = async (contract, platform) => {
-  const record = await PriceCache.findOne({ contract, platform });
-  if (!record) return null;
-
-  const isFresh = Date.now() - new Date(record.lastUpdated).getTime() < 5 * 60 * 1000;
-  return isFresh ? record : null;
-};
-
-// Fetch from CoinGecko and store in DB
-const fetchAndStorePrice = async (contract, platform) => {
+const fetchAndStorePrice = async (contract, network) => {
   try {
-    const url = `https://api.coingecko.com/api/v3/coins/${platform}/contract/${contract}`;
-    const res = await axios.get(url);
-    const data = res.data.market_data;
+    const now = Date.now();
+    const existing = await Coin.findOne({ address: contract, network });
 
-    const priceInfo = {
-      price: data?.current_price?.usd,
-      change24h: data?.price_change_percentage_24h,
-      marketCap: data?.market_cap?.usd,
-      lastUpdated: new Date()
-    };
+    // If price exists and is fresh (within 2 minutes), skip fetch
+    if (existing && now - new Date(existing.updatedAt).getTime() < 2 * 60 * 1000) {
+      console.log(`⏩ Using cached price for ${contract}`);
+      return;
+    }
 
-    await PriceCache.findOneAndUpdate(
-      { contract, platform },
-      { ...priceInfo, contract, platform },
-      { upsert: true, new: true }
+    const priceData = await fetchFromCoinGecko(contract, network);
+    if (!priceData) throw new Error('No data');
+
+    await Coin.findOneAndUpdate(
+      { address: contract, network },
+      { ...priceData, updatedAt: new Date() },
+      { upsert: true }
     );
 
-    console.log(`[✔] Fetched and stored price for ${contract}`);
-  } catch (e) {
-    console.error(`❌ Fetch failed for ${contract}:`, e.response?.status || e.message);
+    console.log(`✅ Updated price for ${contract}`);
+  } catch (err) {
+    console.error(`❌ Fetch failed for ${contract}: ${err.response?.status || err.message}`);
   }
 };
 
-// Loop with delay per coin
-const updatePrices = async () => {
-  for (let coin of trackedContracts) {
-    const { contract, platform } = coin;
-
-    const cached = await getCachedPrice(contract, platform);
-    if (cached) {
-      console.log(`[💾] Used cached price for ${contract}`);
-    } else {
-      await fetchAndStorePrice(contract, platform);
-      await delay(2500); // 2.5s delay between calls
-    }
-  }
-};
-
-// Start the updater every 15 seconds
-exports.startPriceUpdater = () => {
+const startPriceUpdater = async () => {
   console.log('⏱️ Price updater started...');
-  setInterval(updatePrices, 15000); // Every 15s
+
+  const coins = await Coin.find({}).limit(100); // Limit to avoid rate limit
+
+  for (let coin of coins) {
+    await fetchAndStorePrice(coin.address, coin.network);
+    await delay(2000); // Wait 2 seconds between requests
+  }
+};
+
+module.exports = {
+  startPriceUpdater
 };
