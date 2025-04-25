@@ -29,6 +29,8 @@ const tokenScanRoutes = require('./routes/tokenScanRoutes');
 const { startCoinFetcher } = require('./jobs/coinFetcher');
 startCoinFetcher(); // 🛠 Start fetching coins from CoinGecko
 
+const autoCategory = require('./routes/autoCategory');
+
 // ✅ Initialize Express app & server
 const app = express();
 const server = http.createServer(app);
@@ -84,15 +86,16 @@ app.use('/api/candles', candleRoutes);
 app.use('/api/gainers', gainersRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
+app.use('/api/auto-category', autoCategory );
 
 // ✅ Background jobs (launchers)
-require('./jobs/coinIndexer'); // 🛠 start auto-indexer
-
 require('./jobs/priceUpdater').startPriceUpdater();
 require('./jobs/candleUpdater').updateCandles();
 setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
 require('./jobs/tradeListener').startTradeListener();
 require('./jobs/index');
+require('./jobs/coinIndexer'); // 🛠 start auto-indexer
+
 require('./jobs/categoryUpdater').updateCategories(); // run once
 setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000); // repeat every 2 min
 
