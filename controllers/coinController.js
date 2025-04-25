@@ -216,5 +216,5 @@ module.exports = {
   voteCoin,
   getTopHolders,
   getTradeHistory,
-  getTrendingCoins 
+  getTrendingCoins, // <- make sure this is here!
 };
