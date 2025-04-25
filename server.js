@@ -84,6 +84,8 @@ app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
 
 // ✅ Background jobs (launchers)
+require('./jobs/coinIndexer'); // 🛠 start auto-indexer
+
 require('./jobs/priceUpdater').startPriceUpdater();
 require('./jobs/candleUpdater').updateCandles();
 setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
