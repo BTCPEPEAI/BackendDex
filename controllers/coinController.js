@@ -7,6 +7,7 @@ const { fetchFromCoinGecko } = require('../services/externalApiService');
 const { getMultiplePrices } = require('../services/priceCache');
 const { fetchCoinWithCache } = require('../services/coinCacheService');
 const axios = require('axios');
+const AutoCategory = require('../models/AutoCategory');
 
 
 const getAllCoins = async (req, res) => {
@@ -52,14 +53,19 @@ const searchCoins = async (req, res) => {
   res.json(coins);
 };
 
-// ✅ GET /api/coin/category/:category
 const getCategoryCoins = async (req, res) => {
   const { category } = req.params;
 
-  const adminEntry = await AdminCoin.findOne({ category });
-  if (!adminEntry) return res.json([]);
+  const auto = await AutoCategory.findOne({ category });
+  const admin = await AdminCoin.findOne({ category });
 
-  const coins = await Coin.find({ contractAddress: { $in: adminEntry.coins } });
+  const autoCoins = auto?.coins || [];
+  const adminCoins = admin?.coins || [];
+
+  const merged = [...new Set([...autoCoins, ...adminCoins])];
+
+  const coins = await Coin.find({ contractAddress: { $in: merged } });
+
   res.json(coins);
 };
 
