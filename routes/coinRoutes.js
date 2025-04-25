@@ -8,10 +8,17 @@ const {
   fetchCoinDataFiltered,
   getCoinPage,
   voteCoin,
-  getTrendingCoins, 
   getTopHolders,
   getTradeHistory
 } = require('../controllers/coinController');
+
+const { getCoinsByCategory, getCoinDetails } = require('../controllers/coinController');
+
+// /api/coins/category/trending
+router.get('/category/:category', getCoinsByCategory);
+
+// /api/coin/:contract
+router.get('/:contract', getCoinDetails);
 
 // Public Routes
 router.get('/search', searchCoins);
