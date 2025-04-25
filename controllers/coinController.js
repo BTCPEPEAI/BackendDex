@@ -211,7 +211,6 @@ module.exports = {
   getLivePrices,
   searchCoins,
   getCategoryCoins,
-  getCoinsByCategory,
   fetchCoinDataFiltered,
   getCoinPage,
   voteCoin,
