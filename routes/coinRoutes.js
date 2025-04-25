@@ -9,28 +9,23 @@ const {
   getCoinPage,
   voteCoin,
   getTopHolders,
-  getTradeHistory
+  getTradeHistory,
+  getTrendingCoins,
+  getCoinDetails
 } = require('../controllers/coinController');
-
-const { getCoinsByCategory, getCoinDetails } = require('../controllers/coinController');
-
-// /api/coins/category/trending
-router.get('/category/:category', getCoinsByCategory);
-
-// /api/coin/:contract
-router.get('/:contract', getCoinDetails);
 
 // Public Routes
 router.get('/search', searchCoins);
 router.get('/category/:category', getCategoryCoins);
-router.post('/fetch', fetchCoinDataFiltered);
-router.post('/live-prices', getLivePrices);
 router.get('/top-holders', getTopHolders);
 router.get('/trade-history', getTradeHistory);
 router.get('/trending', getTrendingCoins);
-
-// Dynamic
-router.get('/:contract', getCoinPage);
+router.post('/fetch', fetchCoinDataFiltered);
+router.post('/live-prices', getLivePrices);
 router.post('/vote', voteCoin);
+
+// Coin-specific Routes
+router.get('/coin/:contract', getCoinDetails);
+router.get('/:contract', getCoinPage);
 
 module.exports = router;
