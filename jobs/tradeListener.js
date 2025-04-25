@@ -1,3 +1,4 @@
+global.WebSocket = require('ws'); // Add this line at the top
 const { ethers } = require('ethers');
 const Trade = require('../models/Trade');
 const { FactoryABI, PairABI } = require('../abis'); // make sure you have these ABIs
