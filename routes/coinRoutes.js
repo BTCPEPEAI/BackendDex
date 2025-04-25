@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
+const { getAllCoins } = require('../controllers/coinController');
 const {
   getTrendingCoins,
   getLivePrices,
@@ -23,7 +23,7 @@ router.get('/trending', getTrendingCoins);
 router.post('/fetch', fetchCoinDataFiltered);
 router.post('/live-prices', getLivePrices);
 router.post('/vote', voteCoin);
-
+router.get('/all', getAllCoins); // ✅ NEW ROUTE
 // Coin-specific
 router.get('/:contract', getCoinPage);
 
