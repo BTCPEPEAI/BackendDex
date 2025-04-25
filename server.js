@@ -89,6 +89,8 @@ require('./jobs/candleUpdater').updateCandles();
 setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
 require('./jobs/tradeListener').startTradeListener();
 require('./jobs/index');
+require('./jobs/categoryUpdater').updateCategories(); // run once
+setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000); // repeat every 2 min
 
 // ✅ Start server
 const PORT = process.env.PORT || 10000;
