@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Ad = require('../models/Ad');
-const { getAdsForPage } = require('../controllers/adsController');
+
 
 router.get('/page/:page', getAdsForPage); // ← /api/ads/page/home
 
