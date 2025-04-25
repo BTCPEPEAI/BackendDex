@@ -1,39 +1,31 @@
 const Coin = require('../models/Coin');
 const AdminCoin = require('../models/AdminCoin');
-const { fetchFromCoinGecko, fetchExtraData } = require('../services/externalApiService');
-const { getMultiplePrices } = require('../services/priceCache');
-const { getCoinData } = require('../services/coinService');
+const TrendingCoin = require('../models/TrendingCoin');
+const CoinPriceCache = require('../models/CoinPriceCache');
 const CommunityVote = require('../models/CommunityVote');
-const axios = require('axios');
+const { fetchFromCoinGecko } = require('../services/externalApiService');
+const { getMultiplePrices } = require('../services/priceCache');
 const { fetchCoinWithCache } = require('../services/coinCacheService');
+const axios = require('axios');
 
-const tokens = [ 
-  { address: '0x...', network: 'ethereum' }, 
-  { address: '0x...', network: 'bsc' }, 
-  // more tokens
-];
-
-async function updatePrices() {
-  for (const token of tokens) {
-    const result = await fetchCoinWithCache(token.address, token.network);
-    console.log(`✅ Updated price for ${token.address}: $${result?.price}`);
-  }
-}
-
-
-
-// ✅ GET /api/coin/live-prices
-const getLivePrices = async (req, res) => {
+// ✅ GET /api/coin/trending
+const getTrendingCoins = async (req, res) => {
   try {
-    const prices = await getMultiplePrices(); // Or your own logic
-    res.json(prices);
-  } catch (error) {
-    console.error('Live Prices Error:', error.message);
-    res.status(500).json({ message: 'Failed to fetch live prices' });
+    const entry = await TrendingCoin.findOne({});
+    if (!entry) return res.status(404).json({ error: 'No trending data' });
+
+    const coins = await Coin.find({
+      contractAddress: { $in: entry.coins }
+    });
+
+    res.json(coins);
+  } catch (err) {
+    console.error('Trending fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to load trending coins' });
   }
 };
 
-// ✅ GET /api/coin/search?q=
+// ✅ GET /api/coin/search?q=...
 const searchCoins = async (req, res) => {
   const { q } = req.query;
   const regex = new RegExp(q, 'i');
@@ -109,21 +101,14 @@ const fetchCoinDataFiltered = async (req, res) => {
 
 // ✅ GET /api/coin/:contract
 const getCoinPage = async (req, res) => {
+  const { contract } = req.params;
+  const chain = req.query.chain || 'eth';
   try {
-    const { contract } = req.params;
-    const { chain = 'eth' } = req.query;
-
-    const data = await getCoinData(contract, chain);
-    const votes = await CommunityVote.find({ contract });
-
-    const voteStats = {
-      upvotes: votes.filter(v => v.vote === 'up').length,
-      downvotes: votes.filter(v => v.vote === 'down').length
-    };
-
-    res.json({ ...data, community: voteStats });
+    const cache = await CoinPriceCache.findOne({ address: contract, network: chain });
+    if (!cache) return res.status(404).json({ error: 'Coin not found' });
+    res.json(cache);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch coin' });
   }
 };
 
@@ -176,38 +161,30 @@ const getTradeHistory = async (req, res) => {
   }
 };
 
-// ✅ GET /api/coin/trending
-const TrendingCoin = require('../models/TrendingCoin');
-
-const getTrendingCoins = async (req, res) => {
+// ✅ GET /api/coin/live-prices
+const getLivePrices = async (req, res) => {
   try {
-    const entry = await TrendingCoin.findOne({});
-    if (!entry) return res.status(404).json({ error: 'No trending data' });
-
-    const coins = await Coin.find({
-      contractAddress: { $in: entry.coins }
-    });
-
-    res.json(coins);
-  } catch (err) {
-    console.error('Trending fetch error:', err.message);
-    res.status(500).json({ error: 'Failed to load trending coins' });
+    const prices = await getMultiplePrices();
+    res.json(prices);
+  } catch (error) {
+    console.error('Live Prices Error:', error.message);
+    res.status(500).json({ message: 'Failed to fetch live prices' });
   }
 };
 
-exports.getCoinsByCategory = async (req, res) => {
+// Optional route if needed
+const getCoinsByCategory = async (req, res) => {
   const { category } = req.params;
   try {
-    const coins = await Coin.find({ category }).limit(100);
+    const coins = await Coin.find({ category }).limit(500);
     res.json(coins);
-  } catch (e) {
-    res.status(500).json({ error: 'Failed to fetch category' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch coins' });
   }
 };
 
-
-
 module.exports = {
+  getTrendingCoins,
   getLivePrices,
   searchCoins,
   getCategoryCoins,
@@ -216,5 +193,5 @@ module.exports = {
   voteCoin,
   getTopHolders,
   getTradeHistory,
-  getTrendingCoins, // <- make sure this is here!
+  getCoinsByCategory
 };
