@@ -7,7 +7,7 @@ const { fetchFromCoinGecko } = require('../services/externalApiService');
 const { getMultiplePrices } = require('../services/priceCache');
 const { fetchCoinWithCache } = require('../services/coinCacheService');
 const axios = require('axios');
-const Coin = require('../models/Coin');
+
 
 const getAllCoins = async (req, res) => {
   try {
