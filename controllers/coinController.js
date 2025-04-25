@@ -7,6 +7,17 @@ const { fetchFromCoinGecko } = require('../services/externalApiService');
 const { getMultiplePrices } = require('../services/priceCache');
 const { fetchCoinWithCache } = require('../services/coinCacheService');
 const axios = require('axios');
+const Coin = require('../models/Coin');
+
+const getAllCoins = async (req, res) => {
+  try {
+    const coins = await Coin.find({}).limit(1000); // limit to avoid overload
+    res.json(coins);
+  } catch (error) {
+    console.error('Error fetching all coins:', error.message);
+    res.status(500).json({ error: 'Failed to fetch coins' });
+  }
+};
 
 // ✅ GET /api/coin/trending
 const getTrendingCoins = async (req, res) => {
@@ -193,5 +204,6 @@ module.exports = {
   voteCoin,
   getTopHolders,
   getTradeHistory,
-  getCoinsByCategory
+  getCoinsByCategory,
+  getAllCoins
 };
