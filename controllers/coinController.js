@@ -176,6 +176,27 @@ const getTradeHistory = async (req, res) => {
   }
 };
 
+// ✅ GET /api/coin/trending
+const TrendingCoin = require('../models/TrendingCoin');
+
+const getTrendingCoins = async (req, res) => {
+  try {
+    const entry = await TrendingCoin.findOne({});
+    if (!entry) return res.status(404).json({ error: 'No trending data' });
+
+    const coins = await Coin.find({
+      contractAddress: { $in: entry.coins }
+    });
+
+    res.json(coins);
+  } catch (err) {
+    console.error('Trending fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to load trending coins' });
+  }
+};
+
+
+
 module.exports = {
   getLivePrices,
   searchCoins,
@@ -184,5 +205,6 @@ module.exports = {
   getCoinPage,
   voteCoin,
   getTopHolders,
-  getTradeHistory
+  getTradeHistory,
+  getTrendingCoins 
 };
