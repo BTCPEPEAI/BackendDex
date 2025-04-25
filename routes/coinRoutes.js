@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const {
+  getTrendingCoins,
   getLivePrices,
   searchCoins,
   getCategoryCoins,
@@ -10,8 +11,7 @@ const {
   voteCoin,
   getTopHolders,
   getTradeHistory,
-  getTrendingCoins,
-  getCoinDetails
+  getCoinsByCategory
 } = require('../controllers/coinController');
 
 // Public Routes
@@ -24,8 +24,10 @@ router.post('/fetch', fetchCoinDataFiltered);
 router.post('/live-prices', getLivePrices);
 router.post('/vote', voteCoin);
 
-// Coin-specific Routes
-router.get('/coin/:contract', getCoinDetails);
+// Coin-specific
 router.get('/:contract', getCoinPage);
+
+// Optional additional route (if you still want)
+router.get('/coins-by/:category', getCoinsByCategory);
 
 module.exports = router;
