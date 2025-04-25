@@ -195,12 +195,23 @@ const getTrendingCoins = async (req, res) => {
   }
 };
 
+exports.getCoinsByCategory = async (req, res) => {
+  const { category } = req.params;
+  try {
+    const coins = await Coin.find({ category }).limit(100);
+    res.json(coins);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch category' });
+  }
+};
+
 
 
 module.exports = {
   getLivePrices,
   searchCoins,
   getCategoryCoins,
+  getCoinsByCategory,
   fetchCoinDataFiltered,
   getCoinPage,
   voteCoin,
