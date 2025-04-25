@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const TokenPair = require('../models/TokenPair');
+const { getGainers } = require('../controllers/gainersController');
+
+router.get('/', getGainers); // ← /api/gainers
+
 
 router.get('/', async (req, res) => {
   const all = await TokenPair.find().sort({ price: -1 }).limit(100);
