@@ -8,6 +8,7 @@ const {
   fetchCoinDataFiltered,
   getCoinPage,
   voteCoin,
+  getTrendingCoins, 
   getTopHolders,
   getTradeHistory
 } = require('../controllers/coinController');
