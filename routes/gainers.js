@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const TokenPair = require('../models/TokenPair');
-const { getGainers } = require('../controllers/gainersController');
+const { getTopGainers } = require('../controllers/gainersController');
 
-router.get('/', getGainers); // ← /api/gainers
+router.get('/', getTopGainers); // ← /api/gainers
 
 
 router.get('/', async (req, res) => {
