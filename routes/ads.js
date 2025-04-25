@@ -2,9 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Ad = require('../models/Ad');
 
-
-router.get('/page/:page', getAdsForPage); // ← /api/ads/page/home
-
 // Get all ads
 router.get('/', async (req, res) => {
   const ads = await Ad.find().sort({ createdAt: -1 });
