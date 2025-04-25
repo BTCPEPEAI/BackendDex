@@ -63,7 +63,7 @@ app.use('/api/candles', require('./routes/candleRoutes'));
 app.use('/api/gainers', require('./routes/gainers'));
 app.use('/api/chart', require('./routes/chartRoutes'));
 app.use('/api/scan', require('./routes/tokenScanRoutes'));
-
+app.use('api/all', require('./routes/coinRoutes'));
 // ✅ Background jobs
 require('./jobs/priceUpdater').startPriceUpdater();
 require('./jobs/candleUpdater').updateCandles();
