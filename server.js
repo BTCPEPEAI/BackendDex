@@ -26,6 +26,8 @@ const candleRoutes = require('./routes/candleRoutes');
 const gainersRoutes = require('./routes/gainers');
 const chartRoutes = require('./routes/chartRoutes');
 const tokenScanRoutes = require('./routes/tokenScanRoutes');
+const { startCoinFetcher } = require('./jobs/coinFetcher');
+startCoinFetcher(); // 🛠 Start fetching coins from CoinGecko
 
 // ✅ Initialize Express app & server
 const app = express();
