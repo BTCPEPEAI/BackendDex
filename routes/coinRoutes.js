@@ -19,6 +19,7 @@ router.post('/fetch', fetchCoinDataFiltered);
 router.post('/live-prices', getLivePrices);
 router.get('/top-holders', getTopHolders);
 router.get('/trade-history', getTradeHistory);
+router.get('/trending', getTrendingCoins);
 
 // Dynamic
 router.get('/:contract', getCoinPage);
