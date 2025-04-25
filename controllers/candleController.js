@@ -1,7 +1,7 @@
 const Candle = require('../models/Candle');
 
 // ✅ GET /api/candles/:address
-exports.getCandles = async (req, res) => {
+const getCandles = async (req, res) => {
   const { address } = req.params;
 
   try {
@@ -11,4 +11,8 @@ exports.getCandles = async (req, res) => {
     console.error('Candle error:', err.message);
     res.status(500).json({ error: 'Failed to fetch candlesticks' });
   }
+};
+
+module.exports = {
+  getCandles,
 };
