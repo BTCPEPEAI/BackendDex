@@ -62,7 +62,6 @@ app.use('/api/indexer', require('./routes/indexerRoutes'));
 app.use('/api/candles', require('./routes/candleRoutes'));
 app.use('/api/gainers', require('./routes/gainers'));
 app.use('/api/chart', require('./routes/chartRoutes'));
-app.use('/api/trending', require('./routes/trendingRoutes'));
 app.use('/api/scan', require('./routes/tokenScanRoutes'));
 
 // ✅ Background jobs
