@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const Candle = require('../models/Candle');
-const { getCandlesByToken } = require('../controllers/candleController');
+const { getCandles } = require('../controllers/candleController');
 
-router.get('/:address', getCandlesByToken);
+router.get('/:address', getCandles);
 
 router.get('/:pairAddress', async (req, res) => {
   const candles = await Candle.find({ pairAddress: req.params.pairAddress })
