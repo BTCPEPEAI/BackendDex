@@ -4,7 +4,8 @@ const Trade = require('../models/Trade');
 const { FactoryABI, PairABI } = require('../abis'); // make sure you have these ABIs
 const provider = new ethers.providers.WebSocketProvider(process.env.BSC_WSS); // or ETH WSS
 
-const factoryAddress = '0xCA143Ce32Fe78f1f7019d7d551a6402fC5350c73'; // PancakeSwap V2 factory
+const factoryAddress = ethers.utils.getAddress("0xCA143Ce32Fe78f1f7019d7d551a6402fC5350c73");
+ // PancakeSwap V2 factory
 
 const startTradeListener = async () => {
   const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
