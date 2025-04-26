@@ -31,7 +31,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => {
   console.log('✅ MongoDB connected');
 
-  // Background jobs that DO NOT have async import issues
+  // Background jobs that don't have top-level await
   require('./services/solanaService').fetchSolanaTokenList();
   require('./jobs/pairWatcher').watchPairs();
 })
@@ -75,14 +75,19 @@ require('./jobs/coinIndexer');
 require('./jobs/categoryUpdater').updateCategories();
 setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
 
-// ✅ START SERVER after simple jobs
+// ✅ Now dynamically import CoinFetcher safely
+(async () => {
+  try {
+    const { startCoinFetcher } = await import('./jobs/coinFetcher.js');
+    startCoinFetcher();
+    console.log('🚀 Coin fetcher started...');
+  } catch (error) {
+    console.error('❌ Failed to start CoinFetcher:', error);
+  }
+})();
+
+// ✅ START SERVER
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-
-  // ✅ Now start heavy fetchers after server is ready
-  setTimeout(() => {
-    console.log('🚀 Delayed start of coinFetcher...');
-    require('./jobs/coinFetcher').startCoinFetcher();
-  }, 3000); // wait 3 seconds after server ready
 });
