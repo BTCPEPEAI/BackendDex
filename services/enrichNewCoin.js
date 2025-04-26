@@ -1,45 +1,49 @@
-// src/services/enrichNewCoin.js
-
-const axios = require('axios');
 const Coin = require('../models/Coin');
+const { fetchTokenDetails } = require('./coinFetchService');
 
-async function enrichNewCoin(address, network = 'bsc') {
-  try {
-    // 1. Try CoinGecko first
-    const cgResponse = await axios.get(`https://api.coingecko.com/api/v3/coins/${network}/contract/${address}`);
-    const data = cgResponse.data;
+async function enrichNewCoin(contractAddress, network) {
+  console.log(`🔄 Enriching token: ${contractAddress} on network: ${network}`);
 
-    if (!data) {
-      console.log(`❌ No data found on CoinGecko for ${address}`);
-      return null;
-    }
+  const tokenDetails = await fetchTokenDetails(contractAddress);
 
-    const coinData = {
-      name: data.name || "Unknown",
-      symbol: data.symbol || "UNK",
-      contractAddress: address,
-      price: data.market_data?.current_price?.usd || 0,
-      marketCap: data.market_data?.market_cap?.usd || 0,
-      change24h: data.market_data?.price_change_percentage_24h || 0,
-      liquidity: data.liquidity_score || 0,
-      image: data.image?.large || "",
-      network: network,
-      launchDate: data.genesis_date || "",
-    };
-
-    // 2. Save into Coins Collection
-    await Coin.updateOne(
-      { contractAddress: address },
-      { $set: coinData },
-      { upsert: true }
-    );
-
-    console.log(`✅ Enriched and saved ${coinData.name} (${coinData.symbol})`);
-    return coinData;
-  } catch (error) {
-    console.error(`❌ Error enriching coin ${address}:`, error.message);
+  if (!tokenDetails) {
+    console.log(`⚠️ Token details not found for ${contractAddress}`);
     return null;
   }
+
+  if (!tokenDetails.name || !tokenDetails.symbol) {
+    console.log(`⚠️ Token missing name or symbol: ${contractAddress}`);
+    return null;
+  }
+
+  // Check if it looks like LP token
+  if (
+    tokenDetails.name.toLowerCase().includes('pancake lp') ||
+    tokenDetails.symbol.toLowerCase().includes('cake-lp') ||
+    tokenDetails.name.toLowerCase().includes('lp') ||
+    tokenDetails.symbol.toLowerCase().includes('lp')
+  ) {
+    console.log(`🚫 Skipping LP token: ${tokenDetails.name || tokenDetails.symbol}`);
+    return null;
+  }
+
+  const existingCoin = await Coin.findOne({ contractAddress });
+  if (existingCoin) return existingCoin;
+
+  const newCoin = new Coin({
+    contractAddress,
+    name: tokenDetails.name,
+    symbol: tokenDetails.symbol,
+    logo: tokenDetails.logo || 'https://via.placeholder.com/50',
+    price: tokenDetails.price || 0,
+    network,
+    createdAt: new Date(),
+  });
+
+  await newCoin.save();
+  console.log(`✅ Coin saved: ${tokenDetails.symbol} (${contractAddress})`);
+
+  return newCoin;
 }
 
 module.exports = { enrichNewCoin };
