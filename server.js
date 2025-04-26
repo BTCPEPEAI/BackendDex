@@ -4,7 +4,8 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
-import { startJobs } from './jobs/index.js';
+import jobs from './jobs/index.js'; // not destructure
+
 
 // Route imports
 import adminRoutes from './routes/adminRoutes.js';
@@ -58,7 +59,7 @@ mongoose.connect(process.env.MONGO_URI, {
   solanaService.fetchSolanaTokenList();
   pairWatcher.watchPairs();
 
-  await startJobs();
+  await jobs.startJobs();
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
 
