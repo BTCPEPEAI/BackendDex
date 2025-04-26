@@ -2,6 +2,7 @@
   "name": "crypto-backend",
   "version": "1.0.0",
   "description": "Backend for Crypto Platform",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,7 +14,6 @@
   "dependencies": {
     "axios": "^1.6.0",
     "bcrypt": "^5.1.0",
-    "type": "module",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "ethers": "^5.8.0",
