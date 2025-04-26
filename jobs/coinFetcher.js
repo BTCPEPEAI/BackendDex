@@ -1,52 +1,50 @@
-const Coin = require('../models/Coin');
+// jobs/coinFetcher.js
+
 const axios = require('axios');
+const Coin = require('../models/Coin'); // your Mongoose Coin model
+const { sleep } = require('../utils/sleep'); // if you have sleep util
 
-// ✅ CoinGecko public API
-const COINGECKO_URL = 'https://api.coingecko.com/api/v3/coins/markets';
+async function startCoinFetcher() {
+  console.log('🚀 coinFetcher started...');
 
-async function fetchCoinsFromCoinGecko() {
-  try {
-    const response = await axios.get(COINGECKO_URL, {
-      params: {
-        vs_currency: 'usd',
-        order: 'market_cap_desc',
-        per_page: 250,
-        page: 1,
-        sparkline: false,
-      },
-    });
+  while (true) {
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/coins/markets', {
+        params: {
+          vs_currency: 'usd',
+          order: 'market_cap_desc',
+          per_page: 250,
+          page: 1,
+          sparkline: false
+        }
+      });
 
-    const coins = response.data;
+      const coins = response.data;
 
-    for (const coin of coins) {
-      const exists = await Coin.findOne({ contractAddress: coin.id });
-
-      if (!exists) {
-        const newCoin = new Coin({
-          contractAddress: coin.id, // You can later replace with real smart contract
-          name: coin.name,
-          symbol: coin.symbol.toUpperCase(),
-          logo: coin.image,
-          price: coin.current_price,
-          marketCap: coin.market_cap,
-          volume: coin.total_volume,
-          network: 'eth', // default ethereum from CoinGecko
-          createdAt: new Date(),
-        });
-
-        await newCoin.save();
-        console.log(`✅ CoinGecko coin saved: ${coin.name}`);
+      for (const coin of coins) {
+        await Coin.updateOne(
+          { contractAddress: coin.id }, // you might need to map address properly
+          {
+            name: coin.name,
+            symbol: coin.symbol,
+            price: coin.current_price,
+            volume: coin.total_volume,
+            liquidity: coin.total_supply,
+            network: 'ethereum', // or bsc if fetched from bsc
+            updatedAt: new Date()
+          },
+          { upsert: true }
+        );
       }
-    }
-  } catch (error) {
-    console.error('❌ fetchCoinsFromCoinGecko error:', error.message);
-  }
-}
 
-function startCoinFetcher() {
-  console.log('🚀 coinFetcher.js started...');
-  fetchCoinsFromCoinGecko();
-  setInterval(fetchCoinsFromCoinGecko, 1000 * 60 * 60); // Run every 1 hour
+      console.log(`✅ Fetched and saved ${coins.length} coins`);
+
+    } catch (error) {
+      console.error('❌ Error fetching coins:', error.message);
+    }
+
+    await sleep(30000); // Sleep for 30 sec before next fetch
+  }
 }
 
 module.exports = { startCoinFetcher };
