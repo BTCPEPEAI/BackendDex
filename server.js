@@ -26,6 +26,9 @@ const candleRoutes = require('./routes/candleRoutes');
 const gainersRoutes = require('./routes/gainers');
 const chartRoutes = require('./routes/chartRoutes');
 const tokenScanRoutes = require('./routes/tokenScanRoutes');
+const { startCoinFetcher } = require('./jobs/coinFetcher');
+startCoinFetcher(); // 🛠 Start fetching coins from CoinGecko
+
 const autoCategory = require('./routes/autoCategory');
 
 // ✅ Initialize Express app & server
@@ -53,6 +56,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
   // ✅ Background jobs after DB connection
   require('./services/solanaService').fetchSolanaTokenList();
+
   require('./jobs/pairWatcher').watchPairs();
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
@@ -68,7 +72,7 @@ io.on('connection', (socket) => {
 // ✅ API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
-app.use('/api/coin', coinRoutes);
+app.use('/api/coin', coinRoutes); // ✅ Corrected — only one registration!
 app.use('/api/wallet', walletRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/dex-data', dexRoutes);
@@ -83,7 +87,7 @@ app.use('/api/candles', candleRoutes);
 app.use('/api/gainers', gainersRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
-app.use('/api/auto-category', autoCategory);
+app.use('/api/auto-category', autoCategory );
 
 // ✅ Background jobs (launchers)
 require('./jobs/priceUpdater').startPriceUpdater();
@@ -91,20 +95,11 @@ require('./jobs/candleUpdater').updateCandles();
 setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
 require('./jobs/tradeListener').startTradeListener();
 require('./jobs/index');
-require('./jobs/coinIndexer');
-require('./jobs/categoryUpdater').updateCategories();
-setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
+require('./jobs/coinIndexer'); // 🛠 start auto-indexer
+
+require('./jobs/categoryUpdater').updateCategories(); // run once
+setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000); // repeat every 2 min
 
 // ✅ Start server
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-
-  // ✅ Import async modules AFTER server is ready
-  try {
-    await import('./jobs/coinFetcher.js');
-    console.log('✅ coinFetcher.js started successfully');
-  } catch (err) {
-    console.error('❌ Failed to start coinFetcher.js', err);
-  }
-});
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
