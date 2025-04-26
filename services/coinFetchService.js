@@ -1,29 +1,52 @@
+// services/coinFetchService.js
+
 const axios = require('axios');
-const COINGECKO_API = process.env.COINGECKO_API_URL || 'https://api.coingecko.com/api/v3';
+const ethers = require('ethers');
 
-const fetchPriceFromCoinGecko = async (contractAddress, network = 'bsc') => {
+async function fetchTokenDetails(contractAddress, network = 'bsc') {
   try {
-    let platform = 'binance-smart-chain';
-    if (network === 'eth') platform = 'ethereum';
-    if (network === 'polygon') platform = 'polygon-pos';
-    if (network === 'sol') platform = 'solana';
-
-    const url = `${COINGECKO_API}/coins/${platform}/contract/${contractAddress}`;
-
-    const response = await axios.get(url);
-
-    const data = response.data.market_data;
+    // First try CoinGecko
+    const geckoResponse = await axios.get(`https://api.coingecko.com/api/v3/coins/${network}/contract/${contractAddress}`);
+    const data = geckoResponse.data;
 
     return {
-      price: data.current_price.usd,
-      volume: data.total_volume.usd,
-      priceChange24h: data.price_change_percentage_24h,
+      name: data.name,
+      symbol: data.symbol,
+      logo: data.image?.small,
+      price: data.market_data?.current_price?.usd,
     };
-
   } catch (error) {
-    console.error(`❌ fetchPriceFromCoinGecko Error:`, error.message);
-    return null;
-  }
-};
+    console.warn(`⚠️ CoinGecko failed for ${contractAddress}: ${error.response?.status}`);
 
-module.exports = { fetchPriceFromCoinGecko };
+    // If CoinGecko fails (like 404 or 429), try backup (example: BscScan API, need your API key)
+    try {
+      const bscResponse = await axios.get(`https://api.bscscan.com/api`, {
+        params: {
+          module: 'token',
+          action: 'tokeninfo',
+          contractaddress: contractAddress,
+          apikey: process.env.BSCSCAN_API_KEY, // Add your key in .env
+        }
+      });
+      const token = bscResponse.data?.result;
+
+      if (token) {
+        return {
+          name: token.tokenName,
+          symbol: token.tokenSymbol,
+          logo: null,
+          price: 0, // No price from BscScan
+        };
+      }
+    } catch (err) {
+      console.error(`❌ Backup enrich failed for ${contractAddress}`);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+module.exports = {
+  fetchTokenDetails,
+};
