@@ -1,32 +1,33 @@
 // ✅ Load environment variables
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 
 // ✅ Core dependencies
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import http from 'http';
+import { Server } from 'socket.io';
 
 // ✅ Route imports
-const adminRoutes = require('./routes/adminRoutes.js');
-const adsRoutes = require('./routes/ads.js');
-const coinRoutes = require('./routes/coinRoutes.js');
-const walletRoutes = require('./routes/walletRoutes.js');
-const homepageRoutes = require('./routes/homepageRoutes.js');
-const dexRoutes = require('./routes/dexRoutes.js');
-const tokenInfoRoutes = require('./routes/tokenInfoRoutes.js');
-const coinMetricsRoutes = require('./routes/coinMetricsRoutes.js');
-const tokenStatsRoutes = require('./routes/tokenStatsRoutes.js');
-const trendingCoinsRoutes = require('./routes/trendingCoins.js');
-const usersRoutes = require('./routes/users.js');
-const applicationsRoutes = require('./routes/applications.js');
-const indexerRoutes = require('./routes/indexerRoutes.js');
-const candleRoutes = require('./routes/candleRoutes.js');
-const gainersRoutes = require('./routes/gainers.js');
-const chartRoutes = require('./routes/chartRoutes.js');
-const tokenScanRoutes = require('./routes/tokenScanRoutes.js');
-const autoCategoryRoutes = require('./routes/autoCategory.js');
+import coinRoutes from './routes/coinRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import adsRoutes from './routes/ads.js';
+import walletRoutes from './routes/walletRoutes.js';
+import homepageRoutes from './routes/homepageRoutes.js';
+import dexRoutes from './routes/dexRoutes.js';
+import tokenInfoRoutes from './routes/tokenInfoRoutes.js';
+import coinMetricsRoutes from './routes/coinMetricsRoutes.js';
+import tokenStatsRoutes from './routes/tokenStatsRoutes.js';
+import trendingCoinsRoutes from './routes/trendingCoins.js';
+import usersRoutes from './routes/users.js';
+import applicationsRoutes from './routes/applications.js';
+import indexerRoutes from './routes/indexerRoutes.js';
+import candleRoutes from './routes/candleRoutes.js';
+import gainersRoutes from './routes/gainers.js';
+import chartRoutes from './routes/chartRoutes.js';
+import tokenScanRoutes from './routes/tokenScanRoutes.js';
+import autoCategory from './routes/autoCategory.js';
 
 // ✅ Initialize Express app & server
 const app = express();
@@ -37,7 +38,7 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
-module.exports.io = io;
+export { io };
 
 // ✅ Middleware
 app.use(cors());
@@ -48,10 +49,13 @@ mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => {
+.then(async () => {
   console.log('✅ MongoDB connected');
   require('./services/solanaService').fetchSolanaTokenList();
   require('./jobs/pairWatcher').watchPairs();
+  
+  // ✅ Start background jobs after DB is ready
+  await startJobs();
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
 
@@ -81,18 +85,24 @@ app.use('/api/candles', candleRoutes);
 app.use('/api/gainers', gainersRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
-app.use('/api/auto-category', autoCategoryRoutes);
+app.use('/api/auto-category', autoCategory);
 
-// ✅ Background jobs (launchers)
-require('./jobs/priceUpdater').startPriceUpdater();
-require('./jobs/candleUpdater').updateCandles();
-setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
-require('./jobs/tradeListener').startTradeListener();
-require('./jobs/index');
-require('./jobs/coinFetcher').startCoinFetcher();
-require('./jobs/coinIndexer');
-require('./jobs/categoryUpdater').updateCategories();
-setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
+// ✅ Background jobs launcher
+async function startJobs() {
+  console.log("✅ Starting background jobs...");
+  
+  require('./jobs/priceUpdater').startPriceUpdater();
+  require('./jobs/candleUpdater').updateCandles();
+  setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
+  require('./jobs/tradeListener').startTradeListener();
+  require('./jobs/coinIndexer');
+  require('./jobs/categoryUpdater').updateCategories();
+  setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
+  
+  // ✅ Import ESM module separately
+  const { startCoinFetcher } = await import('./jobs/coinFetcher.js');
+  startCoinFetcher(); // Now fully ESM safe
+}
 
 // ✅ Start server
 const PORT = process.env.PORT || 10000;
