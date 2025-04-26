@@ -1,18 +1,15 @@
-// ✅ Load environment variables
-import dotenv from 'dotenv';
-dotenv.config();
-
-// ✅ Core dependencies
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
+import dotenv from 'dotenv';
+import { startJobs } from './jobs/index.js';
 
-// ✅ Route imports
-import coinRoutes from './routes/coinRoutes.js';
+// Route imports
 import adminRoutes from './routes/adminRoutes.js';
 import adsRoutes from './routes/ads.js';
+import coinRoutes from './routes/coinRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import homepageRoutes from './routes/homepageRoutes.js';
 import dexRoutes from './routes/dexRoutes.js';
@@ -27,9 +24,11 @@ import candleRoutes from './routes/candleRoutes.js';
 import gainersRoutes from './routes/gainers.js';
 import chartRoutes from './routes/chartRoutes.js';
 import tokenScanRoutes from './routes/tokenScanRoutes.js';
-import autoCategory from './routes/autoCategory.js';
+import autoCategoryRoutes from './routes/autoCategory.js';
 
-// ✅ Initialize Express app & server
+dotenv.config();
+
+// Initialize
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -40,26 +39,30 @@ const io = new Server(server, {
 });
 export { io };
 
-// ✅ Middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ MongoDB connection
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
 .then(async () => {
   console.log('✅ MongoDB connected');
-  require('./services/solanaService').fetchSolanaTokenList();
-  require('./jobs/pairWatcher').watchPairs();
-  
-  // ✅ Start background jobs after DB is ready
+
+  // FIX: use dynamic import here
+  const solanaService = await import('./services/solanaService.js');
+  const pairWatcher = await import('./jobs/pairWatcher.js');
+
+  solanaService.fetchSolanaTokenList();
+  pairWatcher.watchPairs();
+
   await startJobs();
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
 
-// ✅ WebSocket logic
+// WebSocket
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   socket.on('disconnect', () => {
@@ -67,7 +70,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ API Routes
+// API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/coin', coinRoutes);
@@ -85,25 +88,8 @@ app.use('/api/candles', candleRoutes);
 app.use('/api/gainers', gainersRoutes);
 app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
-app.use('/api/auto-category', autoCategory);
+app.use('/api/auto-category', autoCategoryRoutes);
 
-// ✅ Background jobs launcher
-async function startJobs() {
-  console.log("✅ Starting background jobs...");
-  
-  require('./jobs/priceUpdater').startPriceUpdater();
-  require('./jobs/candleUpdater').updateCandles();
-  setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
-  require('./jobs/tradeListener').startTradeListener();
-  require('./jobs/coinIndexer');
-  require('./jobs/categoryUpdater').updateCategories();
-  setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
-  
-  // ✅ Import ESM module separately
-  const { startCoinFetcher } = await import('./jobs/coinFetcher.js');
-  startCoinFetcher(); // Now fully ESM safe
-}
-
-// ✅ Start server
+// Start server
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
