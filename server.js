@@ -1,35 +1,37 @@
-import express from 'express';
-import mongoose from 'mongoose';
-import cors from 'cors';
-import http from 'http';
-import { Server } from 'socket.io';
-import dotenv from 'dotenv';
-import jobs from './jobs/index.js'; // not destructure
+// ✅ Load environment variables
+require('dotenv').config();
 
+// ✅ Core dependencies
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 
-// Route imports
-import adminRoutes from './routes/adminRoutes.js';
-import adsRoutes from './routes/ads.js';
-import coinRoutes from './routes/coinRoutes.js';
-import walletRoutes from './routes/walletRoutes.js';
-import homepageRoutes from './routes/homepageRoutes.js';
-import dexRoutes from './routes/dexRoutes.js';
-import tokenInfoRoutes from './routes/tokenInfoRoutes.js';
-import coinMetricsRoutes from './routes/coinMetricsRoutes.js';
-import tokenStatsRoutes from './routes/tokenStatsRoutes.js';
-import trendingCoinsRoutes from './routes/trendingCoins.js';
-import usersRoutes from './routes/users.js';
-import applicationsRoutes from './routes/applications.js';
-import indexerRoutes from './routes/indexerRoutes.js';
-import candleRoutes from './routes/candleRoutes.js';
-import gainersRoutes from './routes/gainers.js';
-import chartRoutes from './routes/chartRoutes.js';
-import tokenScanRoutes from './routes/tokenScanRoutes.js';
-import autoCategoryRoutes from './routes/autoCategory.js';
+// ✅ Route imports
+const adminRoutes = require('./routes/adminRoutes');
+const adsRoutes = require('./routes/ads');
+const coinRoutes = require('./routes/coinRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+const homepageRoutes = require('./routes/homepageRoutes');
+const dexRoutes = require('./routes/dexRoutes');
+const tokenInfoRoutes = require('./routes/tokenInfoRoutes');
+const coinMetricsRoutes = require('./routes/coinMetricsRoutes');
+const tokenStatsRoutes = require('./routes/tokenStatsRoutes');
+const trendingCoinsRoutes = require('./routes/trendingCoins');
+const usersRoutes = require('./routes/users');
+const applicationsRoutes = require('./routes/applications');
+const indexerRoutes = require('./routes/indexerRoutes');
+const candleRoutes = require('./routes/candleRoutes');
+const gainersRoutes = require('./routes/gainers');
+const chartRoutes = require('./routes/chartRoutes');
+const tokenScanRoutes = require('./routes/tokenScanRoutes');
+const autoCategoryRoutes = require('./routes/autoCategory');
 
-dotenv.config();
+// ✅ Jobs (background tasks)
+const { startJobs } = require('./jobs/index');
 
-// Initialize
+// ✅ Initialize Express app & server
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -38,32 +40,28 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
-export { io };
+module.exports.io = io;
 
-// Middleware
+// ✅ Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection
+// ✅ MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(async () => {
+.then(() => {
   console.log('✅ MongoDB connected');
 
-  // FIX: use dynamic import here
-  const solanaService = await import('./services/solanaService.js');
-  const pairWatcher = await import('./jobs/pairWatcher.js');
-
-  solanaService.fetchSolanaTokenList();
-  pairWatcher.watchPairs();
-
-  await jobs.startJobs();
+  // ✅ Background jobs after DB connected
+  require('./services/solanaService').fetchSolanaTokenList();
+  require('./jobs/pairWatcher').watchPairs();
+  startJobs();
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
 
-// WebSocket
+// ✅ WebSocket logic
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   socket.on('disconnect', () => {
@@ -71,7 +69,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// API Routes
+// ✅ API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
 app.use('/api/coin', coinRoutes);
@@ -91,6 +89,6 @@ app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
 app.use('/api/auto-category', autoCategoryRoutes);
 
-// Start server
+// ✅ Start server
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
