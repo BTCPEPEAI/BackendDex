@@ -1,6 +1,7 @@
 const Coin = require('../models/Coin');
 const Trade = require('../models/Trade');
 const { fetchTokenDetails } = require('../services/coinFetchService');
+await enrichNewCoin(contractAddress, 'bsc'); // or eth, polygon etc.
 
 async function indexNewCoins() {
   try {
@@ -33,6 +34,13 @@ async function indexNewCoins() {
     console.error('❌ indexNewCoins error:', error.message);
   }
 }
+
+const newTokens = ["0x123...", "0x456...", "0x789..."]; // Example list
+
+for (const tokenAddress of newTokens) {
+  await enrichNewCoin(tokenAddress, 'bsc');
+}
+
 
 // Run every 5 seconds
 setInterval(indexNewCoins, 5000);
