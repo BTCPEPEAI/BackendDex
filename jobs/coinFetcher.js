@@ -2,7 +2,6 @@
 
 const axios = require('axios');
 const Coin = require('../models/Coin'); // your Mongoose Coin model
-const { sleep } = require('../utils/sleep'); // if you have sleep util
 
 async function startCoinFetcher() {
   console.log('🚀 coinFetcher started...');
