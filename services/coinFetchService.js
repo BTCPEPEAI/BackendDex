@@ -1,52 +1,62 @@
-// services/coinFetchService.js
-
 const axios = require('axios');
-const ethers = require('ethers');
 
-async function fetchTokenDetails(contractAddress, network = 'bsc') {
+// Dexscreener fetch
+async function fetchFromDexscreener(contractAddress, network = 'bsc') {
   try {
-    // First try CoinGecko
-    const geckoResponse = await axios.get(`https://api.coingecko.com/api/v3/coins/${network}/contract/${contractAddress}`);
-    const data = geckoResponse.data;
+    const url = `https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`;
+    const { data } = await axios.get(url);
+
+    if (data.pairs && data.pairs.length > 0) {
+      const pair = data.pairs[0]; // get first pair
+
+      return {
+        name: pair.baseToken?.name || 'Unknown',
+        symbol: pair.baseToken?.symbol || 'UNK',
+        price: pair.priceUsd ? parseFloat(pair.priceUsd) : 0,
+        logo: pair.baseToken?.logoURI || 'https://via.placeholder.com/50'
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error(`⚠️ Dexscreener error for ${contractAddress}:`, error.message);
+    return null;
+  }
+}
+
+// Coingecko fallback fetch
+async function fetchFromCoingecko(contractAddress, network = 'bsc') {
+  try {
+    const apiUrl = `https://api.coingecko.com/api/v3/coins/${network}/contract/${contractAddress}`;
+    const { data } = await axios.get(apiUrl);
 
     return {
       name: data.name,
       symbol: data.symbol,
-      logo: data.image?.small,
-      price: data.market_data?.current_price?.usd,
+      price: data.market_data?.current_price?.usd || 0,
+      logo: data.image?.thumb || 'https://via.placeholder.com/50'
     };
   } catch (error) {
-    console.warn(`⚠️ CoinGecko failed for ${contractAddress}: ${error.response?.status}`);
+    console.error(`⚠️ Coingecko error for ${contractAddress}:`, error.response?.status || error.message);
+    return null;
+  }
+}
 
-    // If CoinGecko fails (like 404 or 429), try backup (example: BscScan API, need your API key)
-    try {
-      const bscResponse = await axios.get(`https://api.bscscan.com/api`, {
-        params: {
-          module: 'token',
-          action: 'tokeninfo',
-          contractaddress: contractAddress,
-          apikey: process.env.BSCSCAN_API_KEY, // Add your key in .env
-        }
-      });
-      const token = bscResponse.data?.result;
+// Main fetchTokenDetails function
+async function fetchTokenDetails(contractAddress, network = 'bsc') {
+  let tokenInfo = await fetchFromDexscreener(contractAddress, network);
 
-      if (token) {
-        return {
-          name: token.tokenName,
-          symbol: token.tokenSymbol,
-          logo: null,
-          price: 0, // No price from BscScan
-        };
-      }
-    } catch (err) {
-      console.error(`❌ Backup enrich failed for ${contractAddress}`);
-      return null;
-    }
+  if (tokenInfo && tokenInfo.name !== 'Unknown' && tokenInfo.symbol !== 'UNK') {
+    return tokenInfo;
+  }
+
+  console.log(`🔄 Trying Coingecko for ${contractAddress}`);
+  tokenInfo = await fetchFromCoingecko(contractAddress, network);
+
+  if (tokenInfo && tokenInfo.name && tokenInfo.symbol) {
+    return tokenInfo;
   }
 
   return null;
 }
 
-module.exports = {
-  fetchTokenDetails,
-};
+module.exports = { fetchTokenDetails };
