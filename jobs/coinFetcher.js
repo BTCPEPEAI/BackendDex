@@ -43,7 +43,7 @@ async function startCoinFetcher() {
       console.error('❌ Error fetching coins:', error.message);
     }
 
-    await sleep(30000); // Sleep for 30 sec before next fetch
+    await sleep(3000); // Sleep for 3 sec before next fetch
   }
 }
 
