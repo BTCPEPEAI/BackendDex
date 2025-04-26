@@ -22,6 +22,6 @@ async function startJobs() {
   }, 2 * 60 * 1000);
 }
 
-export default {
+module.exports = {
   startJobs,
 };
