@@ -1,25 +1,47 @@
-// /jobs/index.js
-
 async function startJobs() {
-  console.log('Starting background jobs...');
+  console.log('🚀 Starting background jobs...');
 
-  // Start background jobs here
-  import('./priceUpdater.js').then(module => module.startPriceUpdater());
-  import('./tradeListener.js').then(module => module.startTradeListener());
-  import('./candleUpdater.js').then(module => module.updateCandles());
-  import('./coinFetcher.js').then(module => module.startCoinFetcher());
-  import('./coinIndexer.js').then(module => module.startCoinIndexer());
-  import('./categoryUpdater.js').then(module => module.updateCategories());
+  try {
+    // Start background jobs
+    const priceUpdater = await import('./priceUpdater.js');
+    priceUpdater.startPriceUpdater();
 
-  // Repeat candle update every minute
-  setInterval(() => {
-    import('./candleUpdater.js').then(module => module.updateCandles());
-  }, 60 * 1000);
+    const tradeListener = await import('./tradeListener.js');
+    tradeListener.startTradeListener();
 
-  // Repeat category updater every 2 minutes
-  setInterval(() => {
-    import('./categoryUpdater.js').then(module => module.updateCategories());
-  }, 2 * 60 * 1000);
+    const candleUpdater = await import('./candleUpdater.js');
+    candleUpdater.updateCandles();
+
+    const coinFetcher = await import('./coinFetcher.js');
+    coinFetcher.startCoinFetcher();
+
+    const coinIndexer = await import('./coinIndexer.js');
+    coinIndexer.startCoinIndexer();
+
+    const categoryUpdater = await import('./categoryUpdater.js');
+    categoryUpdater.updateCategories();
+
+    // Schedule periodic tasks
+    setInterval(async () => {
+      try {
+        const candleUpdater = await import('./candleUpdater.js');
+        candleUpdater.updateCandles();
+      } catch (error) {
+        console.error('❌ Error in candle update interval:', error.message);
+      }
+    }, 60 * 1000); // Every 1 minute
+
+    setInterval(async () => {
+      try {
+        const categoryUpdater = await import('./categoryUpdater.js');
+        categoryUpdater.updateCategories();
+      } catch (error) {
+        console.error('❌ Error in category update interval:', error.message);
+      }
+    }, 2 * 60 * 1000); // Every 2 minutes
+  } catch (error) {
+    console.error('❌ Failed to start background jobs:', error.message);
+  }
 }
 
 module.exports = {
