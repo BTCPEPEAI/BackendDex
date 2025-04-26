@@ -1,14 +1,43 @@
-// ✅ Load environment variables
-require('dotenv').config();
+// Load environment variables
+import dotenv from 'dotenv';
+dotenv.config();
 
-// ✅ Core dependencies
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
+// Core dependencies
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import http from 'http';
+import { Server } from 'socket.io';
 
-// ✅ Initialize Express app & HTTP server
+// Route imports
+import coinRoutes from './routes/coinRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import adsRoutes from './routes/ads.js';
+import walletRoutes from './routes/walletRoutes.js';
+import homepageRoutes from './routes/homepageRoutes.js';
+import dexRoutes from './routes/dexRoutes.js';
+import tokenInfoRoutes from './routes/tokenInfoRoutes.js';
+import coinMetricsRoutes from './routes/coinMetricsRoutes.js';
+import tokenStatsRoutes from './routes/tokenStatsRoutes.js';
+import trendingCoinsRoutes from './routes/trendingCoins.js';
+import usersRoutes from './routes/users.js';
+import applicationsRoutes from './routes/applications.js';
+import indexerRoutes from './routes/indexerRoutes.js';
+import candleRoutes from './routes/candleRoutes.js';
+import gainersRoutes from './routes/gainers.js';
+import chartRoutes from './routes/chartRoutes.js';
+import tokenScanRoutes from './routes/tokenScanRoutes.js';
+import autoCategoryRoutes from './routes/autoCategory.js';
+
+// Job imports
+import { startPriceUpdater } from './jobs/priceUpdater.js';
+import { startCandleUpdater, repeatCandleUpdater } from './jobs/candleUpdater.js';
+import { startTradeListener } from './jobs/tradeListener.js';
+import { startCoinFetcher } from './jobs/coinFetcher.js';
+import { startCoinIndexer } from './jobs/coinIndexer.js';
+import { updateCategories } from './jobs/categoryUpdater.js';
+
+// Initialize Express app & server
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -17,13 +46,15 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
-module.exports.io = io;
 
-// ✅ Middleware
+// Export io if needed elsewhere
+export { io };
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ MongoDB connection
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -31,33 +62,13 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => {
   console.log('✅ MongoDB connected');
 
-  // Background jobs that don't have top-level await
-  require('./services/solanaService').fetchSolanaTokenList();
-  require('./jobs/pairWatcher').watchPairs();
+  // Background jobs after DB connection
+  import('./services/solanaService.js').then(module => module.fetchSolanaTokenList());
+  import('./jobs/pairWatcher.js').then(module => module.watchPairs());
 })
 .catch((err) => console.error('❌ MongoDB error:', err));
 
-// ✅ API Routes
-app.use('/api/admin', require('./routes/adminRoutes'));
-app.use('/api/ads', require('./routes/ads'));
-app.use('/api/coin', require('./routes/coinRoutes'));
-app.use('/api/wallet', require('./routes/walletRoutes'));
-app.use('/api/homepage', require('./routes/homepageRoutes'));
-app.use('/api/dex-data', require('./routes/dexRoutes'));
-app.use('/api/token-info', require('./routes/tokenInfoRoutes'));
-app.use('/api/coin-metrics', require('./routes/coinMetricsRoutes'));
-app.use('/api/token-stats', require('./routes/tokenStatsRoutes'));
-app.use('/api/trending-coins', require('./routes/trendingCoins'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/applications', require('./routes/applications'));
-app.use('/api/indexer', require('./routes/indexerRoutes'));
-app.use('/api/candles', require('./routes/candleRoutes'));
-app.use('/api/gainers', require('./routes/gainers'));
-app.use('/api/chart', require('./routes/chartRoutes'));
-app.use('/api/scan', require('./routes/tokenScanRoutes'));
-app.use('/api/auto-category', require('./routes/autoCategory'));
-
-// ✅ WebSocket logic
+// WebSocket logic
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   socket.on('disconnect', () => {
@@ -65,29 +76,36 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ Background jobs
-require('./jobs/priceUpdater').startPriceUpdater();
-require('./jobs/candleUpdater').updateCandles();
-setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
-require('./jobs/tradeListener').startTradeListener();
-require('./jobs/index');
-require('./jobs/coinIndexer');
-require('./jobs/categoryUpdater').updateCategories();
-setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
+// API Routes
+app.use('/api/admin', adminRoutes);
+app.use('/api/ads', adsRoutes);
+app.use('/api/coin', coinRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use('/api/homepage', homepageRoutes);
+app.use('/api/dex-data', dexRoutes);
+app.use('/api/token-info', tokenInfoRoutes);
+app.use('/api/coin-metrics', coinMetricsRoutes);
+app.use('/api/token-stats', tokenStatsRoutes);
+app.use('/api/trending-coins', trendingCoinsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/applications', applicationsRoutes);
+app.use('/api/indexer', indexerRoutes);
+app.use('/api/candles', candleRoutes);
+app.use('/api/gainers', gainersRoutes);
+app.use('/api/chart', chartRoutes);
+app.use('/api/scan', tokenScanRoutes);
+app.use('/api/auto-category', autoCategoryRoutes);
 
-// ✅ Now dynamically import CoinFetcher safely
-(async () => {
-  try {
-    const { startCoinFetcher } = await import('./jobs/coinFetcher.js');
-    startCoinFetcher();
-    console.log('🚀 Coin fetcher started...');
-  } catch (error) {
-    console.error('❌ Failed to start CoinFetcher:', error);
-  }
-})();
+// Background Jobs
+startCoinFetcher();
+startPriceUpdater();
+startTradeListener();
+startCandleUpdater();
+repeatCandleUpdater();
+startCoinIndexer();
+updateCategories();
+setInterval(updateCategories, 2 * 60 * 1000);
 
-// ✅ START SERVER
+// Start server
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
