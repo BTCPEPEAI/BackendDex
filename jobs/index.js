@@ -1,11 +1,27 @@
-const { generateCandles } = require('./candleGenerator');
+// /jobs/index.js
 
-// Run every 1 minute
-setInterval(generateCandles, 60 * 1000);
-console.log('⏱️ Candle generator running...');
+async function startJobs() {
+  console.log('Starting background jobs...');
 
-const { updateCategories } = require('./categoryUpdater');
+  // Start background jobs here
+  import('./priceUpdater.js').then(module => module.startPriceUpdater());
+  import('./tradeListener.js').then(module => module.startTradeListener());
+  import('./candleUpdater.js').then(module => module.updateCandles());
+  import('./coinFetcher.js').then(module => module.startCoinFetcher());
+  import('./coinIndexer.js').then(module => module.startCoinIndexer());
+  import('./categoryUpdater.js').then(module => module.updateCategories());
 
-setInterval(() => {
-  updateCategories();
-}, 5 * 60 * 1000); // every 5 minutes
+  // Repeat candle update every minute
+  setInterval(() => {
+    import('./candleUpdater.js').then(module => module.updateCandles());
+  }, 60 * 1000);
+
+  // Repeat category updater every 2 minutes
+  setInterval(() => {
+    import('./categoryUpdater.js').then(module => module.updateCategories());
+  }, 2 * 60 * 1000);
+}
+
+export default {
+  startJobs,
+};
