@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
 // ✅ API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
-app.use('/api/coin', coinRoutes); // ✅ Correct
+app.use('/api/coin', coinRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/homepage', homepageRoutes);
 app.use('/api/dex-data', dexRoutes);
@@ -91,18 +91,20 @@ require('./jobs/candleUpdater').updateCandles();
 setInterval(() => require('./jobs/candleUpdater').updateCandles(), 60000);
 require('./jobs/tradeListener').startTradeListener();
 require('./jobs/index');
-require('./jobs/coinIndexer'); // 🛠 start auto-indexer
+require('./jobs/coinIndexer');
 require('./jobs/categoryUpdater').updateCategories();
 setInterval(() => require('./jobs/categoryUpdater').updateCategories(), 2 * 60 * 1000);
 
 // ✅ Start server
 const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  startExtraServices();
-});
 
-// ✅ Dynamic async import for coinFetcher
-async function startExtraServices() {
-  await import('./jobs/coinFetcher.js');
-}
+  // ✅ Import async modules AFTER server is ready
+  try {
+    await import('./jobs/coinFetcher.js');
+    console.log('✅ coinFetcher.js started successfully');
+  } catch (err) {
+    console.error('❌ Failed to start coinFetcher.js', err);
+  }
+});
