@@ -3,6 +3,7 @@ const { ethers } = require('ethers');
 const Trade = require('../models/Trade');
 const { FactoryABI, PairABI } = require('../abis'); // make sure you have these ABIs
 const provider = new ethers.providers.WebSocketProvider(process.env.BSC_WSS); // or ETH WSS
+const { enrichNewCoin } = require('../services/enrichNewCoin');
 
 const factoryAddress = "0xca143ce32fe78f1f7019d7d551a6402fc5350c73"; // ✅ All lowercase bypasses checksum
 
@@ -35,5 +36,25 @@ const startTradeListener = async () => {
 
   console.log('📡 Trade listener started...');
 };
+
+// inside your event listener for new pairs/trades
+async function handleNewTrade(tradeData) {
+  const { tokenAddress } = tradeData; // or wherever your trade event has the coin address
+
+  if (!tokenAddress) {
+    console.log('No token address found in trade.');
+    return;
+  }
+
+  try {
+    const enriched = await enrichNewCoin(tokenAddress, 'bsc'); // default network = bsc
+
+    if (enriched) {
+      console.log(`✅ Enriched and saved ${enriched.name} (${enriched.symbol})`);
+    }
+  } catch (error) {
+    console.error(`❌ Error enriching coin:`, error.message);
+  }
+}
 
 module.exports = { startTradeListener };
