@@ -1,64 +1,71 @@
-const Coin = require('../models/Coin');
-const { fetchTokenDetails } = require('../services/coinFetchService');
-const { fetchTokenInfoFromScan } = require('../services/scanService'); // new - use BscScan/Etherscan
+// enrichNewCoin.js
 
-const enrichNewCoin = async (contractAddress, network = 'bsc') => {
+const Coin = require('../models/Coin');
+const axios = require('axios');
+
+async function enrichNewCoin(contractAddress, network = 'bsc') {
   console.log(`🔄 Enriching token: ${contractAddress} on network: ${network}`);
 
+  let tokenDetails = null;
+
+  // Try Dexscreener first
   try {
-    // 1. Fetch token details from CoinGecko
-    let tokenDetails = await fetchTokenDetails(contractAddress, network);
-
-    // 2. If CoinGecko fails, fallback to BscScan/Etherscan
-    if (!tokenDetails || !tokenDetails.name || !tokenDetails.symbol) {
-      console.log(`⚠️ CoinGecko failed for ${contractAddress}, trying Scan API...`);
-      tokenDetails = await fetchTokenInfoFromScan(contractAddress, network);
+    const dexRes = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`);
+    if (dexRes.data.pairs && dexRes.data.pairs.length > 0) {
+      const pair = dexRes.data.pairs[0];
+      tokenDetails = {
+        name: pair.baseToken.name,
+        symbol: pair.baseToken.symbol,
+        price: parseFloat(pair.priceUsd) || 0,
+        logo: pair.baseToken.logoURI || 'https://via.placeholder.com/50',
+        network: network,
+      };
     }
-
-    // 3. If still missing basic info, skip it
-    if (!tokenDetails || !tokenDetails.name || !tokenDetails.symbol) {
-      console.log(`❌ No valid name/symbol for ${contractAddress}, skipping.`);
-      return;
-    }
-
-    // 4. Skip LP tokens
-    if (tokenDetails.symbol.toLowerCase().includes('lp') || tokenDetails.name.toLowerCase().includes('lp')) {
-      console.log(`❌ LP token detected (${tokenDetails.symbol}), skipping.`);
-      return;
-    }
-
-    // 5. Skip tokens with price = 0
-    if (!tokenDetails.price || tokenDetails.price === 0) {
-      console.log(`❌ Token ${tokenDetails.symbol} price is 0, skipping.`);
-      return;
-    }
-
-    // 6. Check if already exists
-    const existing = await Coin.findOne({ contractAddress });
-    if (existing) {
-      console.log(`✅ Token already exists: ${existing.symbol}`);
-      return existing;
-    }
-
-    // 7. Save the clean new coin
-    const newCoin = new Coin({
-      contractAddress,
-      name: tokenDetails.name,
-      symbol: tokenDetails.symbol,
-      logo: tokenDetails.logo || 'https://via.placeholder.com/50',
-      price: tokenDetails.price,
-      network,
-      createdAt: new Date(),
-    });
-
-    await newCoin.save();
-    console.log(`✅ Coin saved: ${newCoin.name} (${newCoin.symbol})`);
-
-    return newCoin;
-
-  } catch (error) {
-    console.error(`❌ Error enriching ${contractAddress}:`, error.message);
+  } catch (err) {
+    console.log(`⚠️ Dexscreener error for ${contractAddress}: ${err.response?.status || err.message}`);
   }
-};
+
+  // If Dexscreener failed, Try Coingecko
+  if (!tokenDetails) {
+    try {
+      console.log(`🔄 Trying Coingecko for ${contractAddress}...`);
+      const cgList = await axios.get('https://api.coingecko.com/api/v3/coins/list?include_platform=true');
+      for (const coin of cgList.data) {
+        if (coin.platforms && coin.platforms[network] && coin.platforms[network].toLowerCase() === contractAddress.toLowerCase()) {
+          const cgDetails = await axios.get(`https://api.coingecko.com/api/v3/coins/${coin.id}`);
+          tokenDetails = {
+            name: cgDetails.data.name,
+            symbol: cgDetails.data.symbol,
+            price: cgDetails.data.market_data.current_price.usd || 0,
+            logo: cgDetails.data.image.large || 'https://via.placeholder.com/50',
+            network: network,
+          };
+          break;
+        }
+      }
+    } catch (err) {
+      console.log(`⚠️ Coingecko error for ${contractAddress}: ${err.response?.status || err.message}`);
+    }
+  }
+
+  if (tokenDetails && tokenDetails.name && tokenDetails.symbol && tokenDetails.price > 0) {
+    const existing = await Coin.findOne({ contractAddress });
+    if (!existing) {
+      await Coin.create({
+        contractAddress,
+        ...tokenDetails,
+        createdAt: new Date(),
+      });
+      console.log(`✅ Coin saved: ${tokenDetails.symbol} (${contractAddress})`);
+    } else {
+      console.log(`ℹ️ Coin already exists: ${tokenDetails.symbol}`);
+    }
+  } else {
+    console.log(`⚠️ No details found for token: ${contractAddress}`);
+  }
+
+  // Delay to avoid rate limit
+  await new Promise(resolve => setTimeout(resolve, 1200));
+}
 
 module.exports = { enrichNewCoin };
