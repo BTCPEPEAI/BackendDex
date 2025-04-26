@@ -1,13 +1,11 @@
-global.WebSocket = require('ws'); // Add this line at the top
+global.WebSocket = require('ws'); // WebSocket for blockchain listening
 const { ethers } = require('ethers');
 const Trade = require('../models/Trade');
-const { FactoryABI, PairABI } = require('../abis'); // make sure you have these ABIs
-const provider = new ethers.providers.WebSocketProvider(process.env.BSC_WSS); // or ETH WSS
+const { FactoryABI, PairABI } = require('../abis'); // your ABIs
+const provider = new ethers.providers.WebSocketProvider(process.env.BSC_WSS); // WSS from env
 const { enrichNewCoin } = require('../services/enrichNewCoin');
 
-const factoryAddress = "0xca143ce32fe78f1f7019d7d551a6402fc5350c73"; // ✅ All lowercase bypasses checksum
-
- // PancakeSwap V2 factory
+const factoryAddress = "0xca143ce32fe78f1f7019d7d551a6402fc5350c73"; // PancakeSwap V2 Factory
 
 const startTradeListener = async () => {
   const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
@@ -37,9 +35,9 @@ const startTradeListener = async () => {
   console.log('📡 Trade listener started...');
 };
 
-// inside your event listener for new pairs/trades
+// If you want to manually enrich a token caught during trades
 async function handleNewTrade(tradeData) {
-  const { tokenAddress } = tradeData; // or wherever your trade event has the coin address
+  const { tokenAddress } = tradeData;
 
   if (!tokenAddress) {
     console.log('No token address found in trade.');
@@ -47,8 +45,7 @@ async function handleNewTrade(tradeData) {
   }
 
   try {
-    const enriched = await enrichNewCoin(tokenAddress, 'bsc'); // default network = bsc
-
+    const enriched = await enrichNewCoin(tokenAddress, 'bsc');
     if (enriched) {
       console.log(`✅ Enriched and saved ${enriched.name} (${enriched.symbol})`);
     }
