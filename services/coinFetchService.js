@@ -1,19 +1,29 @@
 const axios = require('axios');
+const COINGECKO_API = process.env.COINGECKO_API_URL || 'https://api.coingecko.com/api/v3';
 
-async function fetchTokenDetails(address) {
+const fetchPriceFromCoinGecko = async (contractAddress, network = 'bsc') => {
   try {
-    // ✅ Try fetching basic token info here (replace with real API)
-    // Example: return dummy data now
+    let platform = 'binance-smart-chain';
+    if (network === 'eth') platform = 'ethereum';
+    if (network === 'polygon') platform = 'polygon-pos';
+    if (network === 'sol') platform = 'solana';
+
+    const url = `${COINGECKO_API}/coins/${platform}/contract/${contractAddress}`;
+
+    const response = await axios.get(url);
+
+    const data = response.data.market_data;
+
     return {
-      name: 'Unknown',
-      symbol: 'UNK',
-      logo: 'https://via.placeholder.com/50',
-      price: 0,
+      price: data.current_price.usd,
+      volume: data.total_volume.usd,
+      priceChange24h: data.price_change_percentage_24h,
     };
+
   } catch (error) {
-    console.error('❌ fetchTokenDetails error:', error.message);
+    console.error(`❌ fetchPriceFromCoinGecko Error:`, error.message);
     return null;
   }
-}
+};
 
-module.exports = { fetchTokenDetails };
+module.exports = { fetchPriceFromCoinGecko };
