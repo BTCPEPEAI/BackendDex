@@ -69,14 +69,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const { importSolanaTokens } = require('./jobs/solanaImporter');
-
-app.get('/api/import-solana', async (req, res) => {
-  await importSolanaTokens();
-  res.send('✅ Solana tokens imported and database cleaned.');
-});
- //will delete this later
-
 // ✅ API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
