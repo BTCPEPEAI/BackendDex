@@ -39,8 +39,8 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST'],
+  },
 });
 module.exports.io = io;
 
@@ -49,19 +49,24 @@ app.use(cors());
 app.use(express.json());
 
 // ✅ MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log('✅ MongoDB connected');
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log('✅ MongoDB connected');
 
-  // Start background jobs only after DB connects
-  require('./services/solanaService').fetchSolanaTokenList();
-  require('./jobs/pairWatcher').watchPairs();
-  startJobs();
-})
-.catch(err => console.error('❌ MongoDB connection error:', err));
+    // Start background jobs only after DB connects
+    try {
+      require('./services/solanaService').fetchSolanaTokenList();
+      require('./jobs/pairWatcher').watchPairs();
+      startJobs();
+    } catch (error) {
+      console.error('❌ Error initializing background jobs:', error);
+    }
+  })
+  .catch((err) => console.error('❌ MongoDB connection error:', err));
 
 // ✅ WebSocket Events
 io.on('connection', (socket) => {
@@ -74,8 +79,13 @@ io.on('connection', (socket) => {
 // ✅ Solana token import endpoint (temporary, delete later)
 const { importSolanaTokens } = require('./jobs/solanaImporter');
 app.get('/api/import-solana', async (req, res) => {
-  await importSolanaTokens();
-  res.send('✅ Solana tokens imported and database cleaned.');
+  try {
+    await importSolanaTokens();
+    res.send('✅ Solana tokens imported and database cleaned.');
+  } catch (error) {
+    console.error('❌ Error importing Solana tokens:', error);
+    res.status(500).send('❌ Failed to import Solana tokens.');
+  }
 });
 
 // ✅ API Routes
