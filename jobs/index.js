@@ -8,8 +8,8 @@ const { updateCategories } = require('./categoryUpdater');
 function startJobs() {
   console.log('🚀 Starting background jobs...');
 
-  // Start all background jobs
   try {
+    // Start all background jobs
     startPriceUpdater();
     startTradeListener();
     updateCandles();
@@ -28,8 +28,7 @@ function startJobs() {
 
     console.log('✅ Background jobs started successfully');
   } catch (error) {
-    console.error('❌ Error starting background jobs:', error);
-    throw error;
+    console.error('❌ Error starting background jobs:', error.message);
   }
 }
 
