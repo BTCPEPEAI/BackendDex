@@ -33,6 +33,68 @@ async function fetchPriceFromCoingecko(symbol) {
   }
 }
 
+// Fetch price from Coincap API
+async function fetchPriceFromCoincap(symbol) {
+  try {
+    const response = await axios.get(`https://rest.coincap.io/v3/assets/${symbol}`);
+    const price = parseFloat(response.data.data.priceUsd);
+    return isNaN(price) ? null : price;
+  } catch (error) {
+    console.error(`⚠️ Coincap error for ${symbol}:`, error.response?.status || error.message);
+    return null;
+  }
+}
+
+// Fetch price from LiveCoinWatch API
+async function fetchPriceFromLiveCoinWatch(symbol) {
+  try {
+    const response = await axios.post(
+      'https://api.livecoinwatch.com/coins/single',
+      { currency: 'USD', code: symbol, meta: true },
+      { headers: { 'x-api-key': process.env.LIVECOINWATCH_API_KEY } }
+    );
+    const price = response.data.rate;
+    return isNaN(price) ? null : price;
+  } catch (error) {
+    console.error(`⚠️ LiveCoinWatch error for ${symbol}:`, error.response?.status || error.message);
+    return null;
+  }
+}
+
+// Fetch price from CoinAPI
+async function fetchPriceFromCoinAPI(symbol) {
+  try {
+    const response = await axios.get(`https://rest.coinapi.io/v1/assets/${symbol}`, {
+      headers: { 'X-CoinAPI-Key': process.env.COINAPI_KEY },
+    });
+    const price = parseFloat(response.data[0]?.price_usd);
+    return isNaN(price) ? null : price;
+  } catch (error) {
+    console.error(`⚠️ CoinAPI error for ${symbol}:`, error.response?.status || error.message);
+    return null;
+  }
+}
+
+// Function to fetch price with fallback mechanism
+async function fetchPriceWithFallback(coin) {
+  const apis = [
+    { fetcher: fetchPriceFromDexscreener, param: coin.contractAddress },
+    { fetcher: fetchPriceFromCoingecko, param: coin.symbol.toLowerCase() },
+    { fetcher: fetchPriceFromCoincap, param: coin.symbol.toLowerCase() },
+    { fetcher: fetchPriceFromLiveCoinWatch, param: coin.symbol.toUpperCase() },
+    { fetcher: fetchPriceFromCoinAPI, param: coin.symbol.toUpperCase() },
+  ];
+
+  for (const api of apis) {
+    if (!api.param) continue; // Skip if parameter is missing
+    const price = await api.fetcher(api.param);
+    if (price) return price;
+    await delay(60000); // Wait 1 minute before trying the next API
+  }
+
+  return null; // Return null if all APIs fail
+}
+
 // Function to update prices for all coins
 async function updateCoinPrices() {
   console.log('⏱️ Price updater started...');
@@ -43,19 +105,7 @@ async function updateCoinPrices() {
 
     for (const coin of coins) {
       try {
-        let price = null;
-
-        // Fetch price from Dexscreener if contract address exists
-        if (coin.contractAddress) {
-          price = await fetchPriceFromDexscreener(coin.contractAddress);
-          await delay(1200); // Avoid rate-limiting
-        }
-
-        // Fallback to Coingecko if no price from Dexscreener
-        if (!price && coin.symbol) {
-          price = await fetchPriceFromCoingecko(coin.symbol.toLowerCase());
-          await delay(1200); // Avoid rate-limiting
-        }
+        const price = await fetchPriceWithFallback(coin);
 
         // Update database if a valid price is found
         if (price && price > 0) {
