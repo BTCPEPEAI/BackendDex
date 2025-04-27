@@ -5,6 +5,10 @@ const axios = require('axios');
 // Utility to add a delay between API calls
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
+// Environment variables (ensure these are set in your Render environment)
+const COINAPI_KEY = process.env.COINAPI_KEY;
+const LIVECOINWATCH_API_KEY = process.env.LIVECOINWATCH_API_KEY;
+
 // Fetch price from Dexscreener API
 async function fetchPriceFromDexscreener(address) {
   try {
@@ -25,8 +29,7 @@ async function fetchPriceFromCoingecko(symbol) {
   try {
     const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd`);
     const price = response.data[symbol]?.usd;
-    if (!price || price === 0) return null;
-    return price;
+    return price || null;
   } catch (error) {
     console.error(`⚠️ Coingecko error for ${symbol}:`, error.response?.status || error.message);
     return null;
@@ -51,7 +54,7 @@ async function fetchPriceFromLiveCoinWatch(symbol) {
     const response = await axios.post(
       'https://api.livecoinwatch.com/coins/single',
       { currency: 'USD', code: symbol, meta: true },
-      { headers: { 'x-api-key': process.env.LIVECOINWATCH_API_KEY } }
+      { headers: { 'x-api-key': LIVECOINWATCH_API_KEY } }
     );
     const price = response.data.rate;
     return isNaN(price) ? null : price;
@@ -65,7 +68,7 @@ async function fetchPriceFromLiveCoinWatch(symbol) {
 async function fetchPriceFromCoinAPI(symbol) {
   try {
     const response = await axios.get(`https://rest.coinapi.io/v1/assets/${symbol}`, {
-      headers: { 'X-CoinAPI-Key': process.env.COINAPI_KEY },
+      headers: { 'X-CoinAPI-Key': COINAPI_KEY },
     });
     const price = parseFloat(response.data[0]?.price_usd);
     return isNaN(price) ? null : price;
@@ -88,7 +91,7 @@ async function fetchPriceWithFallback(coin) {
   for (const api of apis) {
     if (!api.param) continue; // Skip if parameter is missing
     const price = await api.fetcher(api.param);
-    if (price) return price;
+    if (price) return price; // Return price if successfully fetched
     await delay(60000); // Wait 1 minute before trying the next API
   }
 
