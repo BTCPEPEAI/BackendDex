@@ -11,6 +11,8 @@ const startTradeListener = async () => {
   const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
 
   factory.on("PairCreated", async (token0, token1, pairAddress) => {
+    console.log(`🆕 New pair detected: ${pairAddress}`);
+    // Listen for swaps on new pairs
     const pair = new ethers.Contract(pairAddress, PairABI, provider);
 
     pair.on("Swap", async (sender, amount0In, amount1In, amount0Out, amount1Out, to, event) => {
@@ -30,28 +32,16 @@ const startTradeListener = async () => {
       await Trade.create(trade);
       console.log(`💱 Trade saved: ${txHash}`);
     });
+
+    // Enrich immediately after detecting pair
+    try {
+      await enrichNewCoin(pairAddress, 'bsc');
+    } catch (err) {
+      console.error(`❌ Error enriching token:`, err.message);
+    }
   });
 
   console.log('📡 Trade listener started...');
 };
-
-// If you want to manually enrich a token caught during trades
-async function handleNewTrade(tradeData) {
-  const { tokenAddress } = tradeData;
-
-  if (!tokenAddress) {
-    console.log('No token address found in trade.');
-    return;
-  }
-
-  try {
-    const enriched = await enrichNewCoin(tokenAddress, 'bsc');
-    if (enriched) {
-      console.log(`✅ Enriched and saved ${enriched.name} (${enriched.symbol})`);
-    }
-  } catch (error) {
-    console.error(`❌ Error enriching coin:`, error.message);
-  }
-}
 
 module.exports = { startTradeListener };
