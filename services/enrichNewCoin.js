@@ -1,6 +1,4 @@
-// enrichNewCoin.js
-
-const Coin = require('../models/Coin');
+vconst Coin = require('../models/Coin');
 const axios = require('axios');
 
 async function enrichNewCoin(contractAddress, network = 'bsc') {
@@ -8,11 +6,24 @@ async function enrichNewCoin(contractAddress, network = 'bsc') {
 
   let tokenDetails = null;
 
+  // Skip clearly invalid LP tokens (simple check)
+  if (!contractAddress || contractAddress.length !== 42) {
+    console.log(`⚠️ Invalid token address skipped: ${contractAddress}`);
+    return;
+  }
+
   // Try Dexscreener first
   try {
     const dexRes = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`);
     if (dexRes.data.pairs && dexRes.data.pairs.length > 0) {
       const pair = dexRes.data.pairs[0];
+
+      // Check if it looks like a real token (avoid LP tokens)
+      if (pair.baseToken.name.toLowerCase().includes('lp') || pair.baseToken.symbol.toLowerCase().includes('lp')) {
+        console.log(`⚠️ LP token detected and skipped: ${contractAddress}`);
+        return;
+      }
+
       tokenDetails = {
         name: pair.baseToken.name,
         symbol: pair.baseToken.symbol,
@@ -48,6 +59,7 @@ async function enrichNewCoin(contractAddress, network = 'bsc') {
     }
   }
 
+  // Final checks before saving
   if (tokenDetails && tokenDetails.name && tokenDetails.symbol && tokenDetails.price > 0) {
     const existing = await Coin.findOne({ contractAddress });
     if (!existing) {
@@ -61,10 +73,10 @@ async function enrichNewCoin(contractAddress, network = 'bsc') {
       console.log(`ℹ️ Coin already exists: ${tokenDetails.symbol}`);
     }
   } else {
-    console.log(`⚠️ No details found for token: ${contractAddress}`);
+    console.log(`⚠️ No valid details found for token: ${contractAddress}, skipping save`);
   }
 
-  // Delay to avoid rate limit
+  // Small delay to avoid hitting API rate limits
   await new Promise(resolve => setTimeout(resolve, 1200));
 }
 
