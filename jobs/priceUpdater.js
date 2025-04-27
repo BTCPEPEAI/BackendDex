@@ -1,12 +1,11 @@
-// /jobs/priceUpdater.js
-
 const Coin = require('../models/Coin');
 const CoinPriceCache = require('../models/CoinPriceCache');
 const axios = require('axios');
 
+// Utility to add a delay between API calls
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-// Fetch price from Dexscreener
+// Fetch price from Dexscreener API
 async function fetchPriceFromDexscreener(address) {
   try {
     const response = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
@@ -21,7 +20,7 @@ async function fetchPriceFromDexscreener(address) {
   }
 }
 
-// Fetch price from Coingecko
+// Fetch price from Coingecko API
 async function fetchPriceFromCoingecko(symbol) {
   try {
     const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd`);
@@ -34,45 +33,60 @@ async function fetchPriceFromCoingecko(symbol) {
   }
 }
 
-// Update prices
+// Function to update prices for all coins
 async function updateCoinPrices() {
   console.log('⏱️ Price updater started...');
 
-  const coins = await Coin.find({ price: { $gt: 0 } }).limit(5000); // avoid dead coins
-  
-  for (const coin of coins) {
-    try {
-      let price = null;
+  try {
+    // Fetch active coins with prices greater than 0
+    const coins = await Coin.find({ price: { $gt: 0 } }).limit(5000); // Avoid processing too many coins
 
-      if (coin.contractAddress) {
-        price = await fetchPriceFromDexscreener(coin.contractAddress);
-        await delay(1200); // wait 1.2 seconds after API call
+    for (const coin of coins) {
+      try {
+        let price = null;
+
+        // Fetch price from Dexscreener if contract address exists
+        if (coin.contractAddress) {
+          price = await fetchPriceFromDexscreener(coin.contractAddress);
+          await delay(1200); // Avoid rate-limiting
+        }
+
+        // Fallback to Coingecko if no price from Dexscreener
+        if (!price && coin.symbol) {
+          price = await fetchPriceFromCoingecko(coin.symbol.toLowerCase());
+          await delay(1200); // Avoid rate-limiting
+        }
+
+        // Update database if a valid price is found
+        if (price && price > 0) {
+          await Coin.updateOne(
+            { _id: coin._id },
+            { $set: { price, updatedAt: new Date() } }
+          );
+          await CoinPriceCache.updateOne(
+            { coinId: coin._id },
+            { $set: { price, updatedAt: new Date() } },
+            { upsert: true }
+          );
+
+          console.log(`✅ Updated ${coin.name} (${coin.symbol}) - $${price}`);
+        } else {
+          console.log(`⚠️ No price for ${coin.symbol}, skipping`);
+        }
+      } catch (innerError) {
+        console.error(`❌ Error updating price for ${coin.symbol}:`, innerError.message);
       }
-
-      if (!price && coin.symbol) {
-        price = await fetchPriceFromCoingecko(coin.symbol.toLowerCase());
-        await delay(1200);
-      }
-
-      if (price && price > 0) {
-        await Coin.updateOne(
-          { _id: coin._id },
-          { $set: { price, updatedAt: new Date() } }
-        );
-        await CoinPriceCache.updateOne(
-          { coinId: coin._id },
-          { $set: { price, updatedAt: new Date() } },
-          { upsert: true }
-        );
-
-        console.log(`✅ Updated ${coin.name} (${coin.symbol}) - $${price}`);
-      } else {
-        console.log(`⚠️ No price for ${coin.symbol}, skipping`);
-      }
-    } catch (error) {
-      console.error(`❌ Error updating price for ${coin.symbol}:`, error.message);
     }
+
+    console.log('✅ Price updater finished successfully');
+  } catch (error) {
+    console.error('❌ Error running price updater:', error.message);
   }
 }
 
-module.exports = { updateCoinPrices };
+// Export the function to be used in the jobs index
+function startPriceUpdater() {
+  updateCoinPrices();
+}
+
+module.exports = { startPriceUpdater };
