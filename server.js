@@ -31,14 +31,16 @@ const autoCategoryRoutes = require('./routes/autoCategory');
 // ✅ Jobs (background tasks)
 const { startJobs } = require('./jobs/index');
 
-// ✅ Initialize Express app & server
+// ✅ Initialize Express app
 const app = express();
 const server = http.createServer(app);
+
+// ✅ Socket.IO setup
 const io = new Server(server, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST'],
-  },
+    methods: ['GET', 'POST']
+  }
 });
 module.exports.io = io;
 
@@ -46,27 +48,34 @@ module.exports.io = io;
 app.use(cors());
 app.use(express.json());
 
-// ✅ MongoDB connection
+// ✅ MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true,
+  useUnifiedTopology: true
 })
 .then(() => {
   console.log('✅ MongoDB connected');
 
-  // ✅ Background jobs after DB connected
+  // Start background jobs only after DB connects
   require('./services/solanaService').fetchSolanaTokenList();
   require('./jobs/pairWatcher').watchPairs();
   startJobs();
 })
-.catch((err) => console.error('❌ MongoDB error:', err));
+.catch(err => console.error('❌ MongoDB connection error:', err));
 
-// ✅ WebSocket logic
+// ✅ WebSocket Events
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
   socket.on('disconnect', () => {
     console.log('❌ Client disconnected:', socket.id);
   });
+});
+
+// ✅ Solana token import endpoint (temporary, delete later)
+const { importSolanaTokens } = require('./jobs/solanaImporter');
+app.get('/api/import-solana', async (req, res) => {
+  await importSolanaTokens();
+  res.send('✅ Solana tokens imported and database cleaned.');
 });
 
 // ✅ API Routes
@@ -89,6 +98,6 @@ app.use('/api/chart', chartRoutes);
 app.use('/api/scan', tokenScanRoutes);
 app.use('/api/auto-category', autoCategoryRoutes);
 
-// ✅ Start server
+// ✅ Start Server
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
