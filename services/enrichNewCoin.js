@@ -1,4 +1,4 @@
-vconst Coin = require('../models/Coin');
+const Coin = require('../models/Coin');
 const axios = require('axios');
 
 async function enrichNewCoin(contractAddress, network = 'bsc') {
