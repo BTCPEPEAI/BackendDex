@@ -1,145 +1,77 @@
-const Coin = require('../models/Coin');
-const CoinPriceCache = require('../models/CoinPriceCache');
+// jobs/priceUpdater.js
+
 const axios = require('axios');
+const Coin = require('../models/Coin');
 
-// Utility to add a delay between API calls
-const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+const COINCAP_API = 'https://api.coincap.io/v2/assets';
+const cache = new Set(); // cache to avoid duplicate fetch
 
-// Environment variables (ensure these are set in your Render environment)
-const COINAPI_KEY = process.env.COINAPI_KEY;
-const LIVECOINWATCH_API_KEY = process.env.LIVECOINWATCH_API_KEY;
-
-// Fetch price from Dexscreener API
-async function fetchPriceFromDexscreener(address) {
+async function fetchPriceFromCoinGecko(symbol) {
   try {
-    const response = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
-    if (response.data.pairs && response.data.pairs.length > 0) {
-      const price = parseFloat(response.data.pairs[0].priceUsd);
-      if (!isNaN(price)) return price;
-    }
-    return null;
-  } catch (error) {
-    console.error(`⚠️ Dexscreener error for ${address}:`, error.response?.status || error.message);
-    return null;
-  }
-}
-
-// Fetch price from Coingecko API
-async function fetchPriceFromCoingecko(symbol) {
-  try {
-    const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${symbol}&vs_currencies=usd`);
-    const price = response.data[symbol]?.usd;
+    const { data } = await axios.get(`https://api.coingecko.com/api/v3/simple/price`, {
+      params: {
+        ids: symbol.toLowerCase(),
+        vs_currencies: 'usd'
+      }
+    });
+    const price = data[symbol.toLowerCase()]?.usd;
     return price || null;
   } catch (error) {
-    console.error(`⚠️ Coingecko error for ${symbol}:`, error.response?.status || error.message);
+    console.error(`⚠️ CoinGecko failed for ${symbol}:`, error.response?.status || error.message);
     return null;
   }
 }
 
-// Fetch price from Coincap API
-async function fetchPriceFromCoincap(symbol) {
+async function fetchPriceFromCoinCap(symbol) {
   try {
-    const response = await axios.get(`https://rest.coincap.io/v3/assets/${symbol}`);
-    const price = parseFloat(response.data.data.priceUsd);
-    return isNaN(price) ? null : price;
+    const { data } = await axios.get(COINCAP_API);
+    const coin = data.data.find(c => c.symbol.toLowerCase() === symbol.toLowerCase());
+    return coin?.priceUsd || null;
   } catch (error) {
-    console.error(`⚠️ Coincap error for ${symbol}:`, error.response?.status || error.message);
+    console.error(`⚠️ CoinCap failed for ${symbol}:`, error.response?.status || error.message);
     return null;
   }
 }
 
-// Fetch price from LiveCoinWatch API
-async function fetchPriceFromLiveCoinWatch(symbol) {
+async function updatePrices() {
   try {
-    const response = await axios.post(
-      'https://api.livecoinwatch.com/coins/single',
-      { currency: 'USD', code: symbol, meta: true },
-      { headers: { 'x-api-key': LIVECOINWATCH_API_KEY } }
-    );
-    const price = response.data.rate;
-    return isNaN(price) ? null : price;
-  } catch (error) {
-    console.error(`⚠️ LiveCoinWatch error for ${symbol}:`, error.response?.status || error.message);
-    return null;
-  }
-}
-
-// Fetch price from CoinAPI
-async function fetchPriceFromCoinAPI(symbol) {
-  try {
-    const response = await axios.get(`https://rest.coinapi.io/v1/assets/${symbol}`, {
-      headers: { 'X-CoinAPI-Key': COINAPI_KEY },
-    });
-    const price = parseFloat(response.data[0]?.price_usd);
-    return isNaN(price) ? null : price;
-  } catch (error) {
-    console.error(`⚠️ CoinAPI error for ${symbol}:`, error.response?.status || error.message);
-    return null;
-  }
-}
-
-// Function to fetch price with fallback mechanism
-async function fetchPriceWithFallback(coin) {
-  const apis = [
-    { fetcher: fetchPriceFromDexscreener, param: coin.contractAddress },
-    { fetcher: fetchPriceFromCoingecko, param: coin.symbol.toLowerCase() },
-    { fetcher: fetchPriceFromCoincap, param: coin.symbol.toLowerCase() },
-    { fetcher: fetchPriceFromLiveCoinWatch, param: coin.symbol.toUpperCase() },
-    { fetcher: fetchPriceFromCoinAPI, param: coin.symbol.toUpperCase() },
-  ];
-
-  for (const api of apis) {
-    if (!api.param) continue; // Skip if parameter is missing
-    const price = await api.fetcher(api.param);
-    if (price) return price; // Return price if successfully fetched
-    await delay(60000); // Wait 1 minute before trying the next API
-  }
-
-  return null; // Return null if all APIs fail
-}
-
-// Function to update prices for all coins
-async function updateCoinPrices() {
-  console.log('⏱️ Price updater started...');
-
-  try {
-    // Fetch active coins with prices greater than 0
-    const coins = await Coin.find({ price: { $gt: 0 } }).limit(5000); // Avoid processing too many coins
+    const coins = await Coin.find({}, 'symbol');
 
     for (const coin of coins) {
-      try {
-        const price = await fetchPriceWithFallback(coin);
+      if (!coin.symbol || cache.has(coin.symbol)) continue;
+      cache.add(coin.symbol);
 
-        // Update database if a valid price is found
-        if (price && price > 0) {
-          await Coin.updateOne(
-            { _id: coin._id },
-            { $set: { price, updatedAt: new Date() } }
-          );
-          await CoinPriceCache.updateOne(
-            { coinId: coin._id },
-            { $set: { price, updatedAt: new Date() } },
-            { upsert: true }
-          );
+      let price = await fetchPriceFromCoinGecko(coin.symbol);
 
-          console.log(`✅ Updated ${coin.name} (${coin.symbol}) - $${price}`);
-        } else {
-          console.log(`⚠️ No price for ${coin.symbol}, skipping`);
-        }
-      } catch (innerError) {
-        console.error(`❌ Error updating price for ${coin.symbol}:`, innerError.message);
+      if (!price) {
+        console.log(`🔄 Trying CoinCap for ${coin.symbol}`);
+        price = await fetchPriceFromCoinCap(coin.symbol);
       }
-    }
 
-    console.log('✅ Price updater finished successfully');
+      if (!price) {
+        console.log(`⚠️ Failed to update price for ${coin.symbol}`);
+        continue;
+      }
+
+      await Coin.updateOne(
+        { symbol: coin.symbol },
+        { $set: { price: parseFloat(price), updatedAt: new Date() } }
+      );
+
+      console.log(`✅ Price updated: ${coin.symbol} → $${parseFloat(price).toFixed(6)}`);
+    }
   } catch (error) {
-    console.error('❌ Error running price updater:', error.message);
+    console.error('❌ Error updating prices:', error.message);
   }
 }
 
-// Export the function to be used in the jobs index
 function startPriceUpdater() {
-  updateCoinPrices();
+  console.log('⏱️ Price updater started...');
+  updatePrices();
+  setInterval(() => {
+    cache.clear(); // Clear cache every round to allow fresh updates
+    updatePrices();
+  }, 10000); // Update every 10 seconds
 }
 
 module.exports = { startPriceUpdater };
