@@ -1,25 +1,36 @@
-// /jobs/index.js
+const { startPriceUpdater } = require('./priceUpdater');
+const { startTradeListener } = require('./tradeListener');
+const { updateCandles } = require('./candleUpdater');
+const { startCoinFetcher } = require('./coinFetcher');
+const { startCoinIndexer } = require('./coinIndexer');
+const { updateCategories } = require('./categoryUpdater');
 
 function startJobs() {
   console.log('🚀 Starting background jobs...');
 
-  // Background Jobs
-  require('./priceUpdater').startPriceUpdater();
-  require('./tradeListener').startTradeListener();
-  require('./candleUpdater').updateCandles();
-  require('./coinFetcher').startCoinFetcher();
-  require('./coinIndexer').startCoinIndexer();
-  require('./categoryUpdater').updateCategories();
+  // Start all background jobs
+  try {
+    startPriceUpdater();
+    startTradeListener();
+    updateCandles();
+    startCoinFetcher();
+    startCoinIndexer();
+    updateCategories();
 
-  // Update candles every 1 minute
-  setInterval(() => {
-    require('./candleUpdater').updateCandles();
-  }, 60 * 1000);
+    // Schedule periodic jobs
+    setInterval(() => {
+      updateCandles();
+    }, 60 * 1000); // Every 1 minute
 
-  // Update categories every 2 minutes
-  setInterval(() => {
-    require('./categoryUpdater').updateCategories();
-  }, 2 * 60 * 1000);
+    setInterval(() => {
+      updateCategories();
+    }, 2 * 60 * 1000); // Every 2 minutes
+
+    console.log('✅ Background jobs started successfully');
+  } catch (error) {
+    console.error('❌ Error starting background jobs:', error);
+    throw error;
+  }
 }
 
 module.exports = { startJobs };
