@@ -1,119 +1,154 @@
 const Coin = require('../models/Coin');
 const axios = require('axios');
+const { isLPToken } = require('../utils/tokenUtils'); // helper to detect LP tokens
 
-// API Keys
-const COINCAP_API = process.env.COINCAP_API;
-const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
-const LIVECOINWATCH_API_KEY = process.env.LIVECOINWATCH_API_KEY;
-const COINAPI_KEY = process.env.COINAPI_KEY;
+// Simple in-memory cache (could replace later with Redis for bigger)
+const tokenCache = new Map();
 
-// Utility function to sleep
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Fetch delay between retries
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function fetchFromCoinGecko(contractAddress, network) {
+// Fetch token details from Coingecko
+async function fetchFromCoingecko(contractAddress, network) {
   try {
-    const url = `${process.env.COINGECKO_API_URL}/coins/${network}/contract/${contractAddress}`;
+    const url = `https://api.coingecko.com/api/v3/coins/${network}/contract/${contractAddress}`;
     const { data } = await axios.get(url);
-    return {
-      name: data.name,
-      symbol: data.symbol,
-      price: data.market_data.current_price.usd || 0,
-      logo: data.image.small || '',
-    };
-  } catch (error) {
-    console.log(`⚠️ CoinGecko failed for ${contractAddress}: ${error.response?.status}`);
-    return null;
+    if (data && data.name && data.symbol) {
+      return {
+        name: data.name,
+        symbol: data.symbol,
+        logo: data.image?.small,
+        price: data.market_data?.current_price?.usd,
+        volume: data.market_data?.total_volume?.usd,
+      };
+    }
+  } catch (err) {
+    console.warn(`⚠️ Coingecko error for ${contractAddress}: ${err.response?.status || err.message}`);
   }
+  return null;
 }
 
-async function fetchFromCoinCap(contractAddress) {
+// Fetch token details from Dexscreener
+async function fetchFromDexscreener(contractAddress) {
   try {
-    const { data } = await axios.get(`${COINCAP_API}`);
-    const asset = data.data.find(asset => asset.id === contractAddress.toLowerCase());
-    if (!asset) return null;
-    return {
-      name: asset.name,
-      symbol: asset.symbol,
-      price: parseFloat(asset.priceUsd) || 0,
-      logo: '', // Coincap API doesn't provide logos
-    };
-  } catch (error) {
-    console.log(`⚠️ CoinCap failed for ${contractAddress}: ${error.response?.status}`);
-    return null;
+    const { data } = await axios.get(`https://api.dexscreener.com/latest/dex/tokens/${contractAddress}`);
+    const pair = data?.pairs?.[0];
+    if (pair) {
+      return {
+        name: pair.baseToken.name,
+        symbol: pair.baseToken.symbol,
+        logo: pair.baseToken.logoURI,
+        price: parseFloat(pair.priceUsd),
+        volume: parseFloat(pair.volume.h24),
+      };
+    }
+  } catch (err) {
+    console.warn(`⚠️ Dexscreener error for ${contractAddress}: ${err.response?.status || err.message}`);
   }
+  return null;
 }
 
-async function fetchFromMoralis(contractAddress, network) {
+// Fetch from CoinCap
+async function fetchFromCoincap(contractAddress) {
   try {
-    const chain = network === 'bsc' ? 'bsc' : 'eth';
-    const { data } = await axios.get(`https://deep-index.moralis.io/api/v2/erc20/metadata?chain=${chain}&addresses=${contractAddress}`, {
-      headers: { 'X-API-Key': MORALIS_API_KEY }
+    const { data } = await axios.get(`https://api.coincap.io/v3/assets`);
+    const match = data.data.find(c => c.symbol.toLowerCase() === contractAddress.slice(0, 4).toLowerCase());
+    if (match) {
+      return {
+        name: match.name,
+        symbol: match.symbol,
+        price: match.priceUsd,
+        volume: match.volumeUsd24Hr,
+      };
+    }
+  } catch (err) {
+    console.warn(`⚠️ Coincap error: ${err.response?.status || err.message}`);
+  }
+  return null;
+}
+
+// Fetch from Moralis
+async function fetchFromMoralis(contractAddress) {
+  try {
+    const { data } = await axios.get(`https://deep-index.moralis.io/api/v2/erc20/metadata?chain=bsc&addresses[]=${contractAddress}`, {
+      headers: {
+        'X-API-Key': process.env.MORALIS_API_KEY
+      }
     });
     const token = data[0];
-    if (!token) return null;
-    return {
-      name: token.name,
-      symbol: token.symbol,
-      price: token.usdPrice || 0,
-      logo: token.logo || '',
-    };
-  } catch (error) {
-    console.log(`⚠️ Moralis failed for ${contractAddress}: ${error.response?.status}`);
-    return null;
-  }
-}
-
-async function fetchFromCoinApi(contractAddress) {
-  try {
-    const { data } = await axios.get(`https://rest.coinapi.io/v1/assets`, {
-      headers: { 'X-CoinAPI-Key': COINAPI_KEY }
-    });
-    const token = data.find(asset => asset.asset_id.toLowerCase() === contractAddress.toLowerCase());
-    if (!token) return null;
-    return {
-      name: token.name,
-      symbol: token.asset_id,
-      price: token.price_usd || 0,
-      logo: '',
-    };
-  } catch (error) {
-    console.log(`⚠️ CoinAPI failed for ${contractAddress}: ${error.response?.status}`);
-    return null;
-  }
-}
-
-async function enrichNewCoin(contractAddress, network = 'bsc') {
-  console.log(`🔄 Enriching token: ${contractAddress} on network: ${network}`);
-
-  const sources = [
-    fetchFromCoinGecko,
-    fetchFromCoinCap,
-    fetchFromMoralis,
-    fetchFromCoinApi,
-  ];
-
-  for (const source of sources) {
-    const details = await source(contractAddress, network);
-    if (details && details.name && details.symbol) {
-      const newCoin = new Coin({
-        contractAddress: contractAddress.toLowerCase(),
-        name: details.name,
-        symbol: details.symbol,
-        price: details.price,
-        logo: details.logo,
-        network,
-        createdAt: new Date(),
-      });
-
-      await newCoin.save();
-      console.log(`✅ Coin saved: ${details.symbol} (${contractAddress})`);
-      return;
-    } else {
-      await sleep(1500); // wait 1.5 sec to avoid rate limit
+    if (token && token.name && token.symbol) {
+      return {
+        name: token.name,
+        symbol: token.symbol,
+        logo: token.logo,
+        price: token.usdPrice,
+        volume: 0, // Moralis doesn't provide volume easily
+      };
     }
+  } catch (err) {
+    console.warn(`⚠️ Moralis error for ${contractAddress}: ${err.response?.status || err.message}`);
   }
-
-  console.log(`❌ No valid details found for token: ${contractAddress}, skipping...`);
+  return null;
 }
 
-module.exports = { enrichNewCoin };
+// The Smart Enrich Function
+async function enrichNewCoin(contractAddress, network = 'bsc') {
+  try {
+    if (tokenCache.has(contractAddress)) {
+      console.log(`⚡ Cache hit: ${contractAddress}`);
+      return tokenCache.get(contractAddress);
+    }
+
+    console.log(`🔄 Enriching token: ${contractAddress} on network: ${network}`);
+
+    const sources = [
+      fetchFromCoingecko,
+      fetchFromDexscreener,
+      fetchFromCoincap,
+      fetchFromMoralis,
+    ];
+
+    let tokenDetails = null;
+    for (const source of sources) {
+      tokenDetails = await source(contractAddress, network);
+      if (tokenDetails) break;
+      await wait(2000); // Wait 2s before next API
+    }
+
+    if (!tokenDetails || !tokenDetails.name || !tokenDetails.symbol || !tokenDetails.price || tokenDetails.price <= 0) {
+      console.warn(`⚠️ No valid details found for ${contractAddress}`);
+      return null;
+    }
+
+    if (isLPToken(tokenDetails.name)) {
+      console.warn(`🚫 Skipping LP Token: ${contractAddress} (${tokenDetails.name})`);
+      return null;
+    }
+
+    // Save new Coin in DB
+    const newCoin = new Coin({
+      contractAddress,
+      name: tokenDetails.name,
+      symbol: tokenDetails.symbol,
+      logo: tokenDetails.logo || 'https://via.placeholder.com/50',
+      price: tokenDetails.price,
+      volume: tokenDetails.volume || 0,
+      network,
+      createdAt: new Date(),
+    });
+
+    await newCoin.save();
+    tokenCache.set(contractAddress, newCoin);
+
+    console.log(`✅ Coin saved: ${newCoin.symbol} (${contractAddress})`);
+    return newCoin;
+
+  } catch (err) {
+    console.error(`❌ Error enriching token ${contractAddress}:`, err.message);
+    return null;
+  }
+}
+
+module.exports = {
+  enrichNewCoin,
+};
