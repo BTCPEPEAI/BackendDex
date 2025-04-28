@@ -8,30 +8,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 
-// ✅ Route imports
-const adminRoutes = require('./routes/adminRoutes');
-const adsRoutes = require('./routes/ads');
-const coinRoutes = require('./routes/coinRoutes');
-const walletRoutes = require('./routes/walletRoutes');
-const homepageRoutes = require('./routes/homepageRoutes');
-const dexRoutes = require('./routes/dexRoutes');
-const tokenInfoRoutes = require('./routes/tokenInfoRoutes');
-const coinMetricsRoutes = require('./routes/coinMetricsRoutes');
-const tokenStatsRoutes = require('./routes/tokenStatsRoutes');
-const trendingCoinsRoutes = require('./routes/trendingCoins');
-const usersRoutes = require('./routes/users');
-const applicationsRoutes = require('./routes/applications');
-const indexerRoutes = require('./routes/indexerRoutes');
-const candleRoutes = require('./routes/candleRoutes');
-const gainersRoutes = require('./routes/gainers');
-const chartRoutes = require('./routes/chartRoutes');
-const tokenScanRoutes = require('./routes/tokenScanRoutes');
-const autoCategoryRoutes = require('./routes/autoCategory');
-
-// ✅ Jobs (background tasks)
-const { startJobs } = require('./jobs/index');
-
-// ✅ Initialize Express app
+// ✅ Initialize Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
 
@@ -61,7 +38,7 @@ mongoose
     try {
       require('./services/solanaService').fetchSolanaTokenList();
       require('./jobs/pairWatcher').watchPairs();
-      startJobs();
+      require('./jobs/index').startJobs();
     } catch (error) {
       console.error('❌ Error initializing background jobs:', error);
     }
@@ -76,7 +53,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ Solana token import endpoint (temporary, delete later)
+// ✅ Temporary Solana token import endpoint
 const { importSolanaTokens } = require('./jobs/solanaImporter');
 app.get('/api/import-solana', async (req, res) => {
   try {
@@ -88,9 +65,25 @@ app.get('/api/import-solana', async (req, res) => {
   }
 });
 
-const adsRoutes = require('./routes/adsRoutes');
-app.use('/api/ads', adsRoutes);
-
+// ✅ Route imports
+const adminRoutes = require('./routes/adminRoutes');
+const adsRoutes = require('./routes/adsRoutes'); // Fixed duplicate import
+const coinRoutes = require('./routes/coinRoutes');
+const walletRoutes = require('./routes/walletRoutes');
+const homepageRoutes = require('./routes/homepageRoutes');
+const dexRoutes = require('./routes/dexRoutes');
+const tokenInfoRoutes = require('./routes/tokenInfoRoutes');
+const coinMetricsRoutes = require('./routes/coinMetricsRoutes');
+const tokenStatsRoutes = require('./routes/tokenStatsRoutes');
+const trendingCoinsRoutes = require('./routes/trendingCoins');
+const usersRoutes = require('./routes/users');
+const applicationsRoutes = require('./routes/applications');
+const indexerRoutes = require('./routes/indexerRoutes');
+const candleRoutes = require('./routes/candleRoutes');
+const gainersRoutes = require('./routes/gainers');
+const chartRoutes = require('./routes/chartRoutes');
+const tokenScanRoutes = require('./routes/tokenScanRoutes');
+const autoCategoryRoutes = require('./routes/autoCategory');
 
 // ✅ API Routes
 app.use('/api/admin', adminRoutes);
