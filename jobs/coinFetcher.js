@@ -1,122 +1,103 @@
-// 📦 src/services/priceFetcher.js
-
 const axios = require('axios');
-require('dotenv').config();
 
-// API KEYS
+const DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex/tokens';
+const COINCAP_API = 'https://api.coincap.io/v2/assets';
+const MORALIS_API = 'https://deep-index.moralis.io/api/v2/erc20';
 const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
-const LIVECOINWATCH_API_KEY = process.env.LIVECOINWATCH_API_KEY;
-const COINAPI_KEY = process.env.COINAPI_KEY;
 
-async function delay(ms) {
+// Helper to wait
+function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchPrice(tokenSymbolOrAddress) {
-  let price = null;
-
+// Try Coingecko first
+async function fetchFromCoingecko(contractAddress, network = 'bsc') {
   try {
-    // 1. Try Coingecko
-    console.log(`🔄 Trying Coingecko for ${tokenSymbolOrAddress}`);
-    const coingeckoRes = await axios.get(`${process.env.COINGECKO_API_URL}/simple/price?ids=${tokenSymbolOrAddress}&vs_currencies=usd`);
-    if (coingeckoRes.data[tokenSymbolOrAddress] && coingeckoRes.data[tokenSymbolOrAddress].usd) {
-      price = coingeckoRes.data[tokenSymbolOrAddress].usd;
-      console.log(`✅ Coingecko price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
-    }
+    const id = {
+      bsc: 'binance-smart-chain',
+      eth: 'ethereum',
+      polygon: 'polygon-pos'
+    }[network] || 'binance-smart-chain';
+
+    const res = await axios.get(`https://api.coingecko.com/api/v3/coins/${id}/contract/${contractAddress}`);
+    return res.data.market_data.current_price.usd;
   } catch (err) {
-    console.log(`❌ Coingecko failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
+    console.warn(`⚠️ Coingecko error for ${contractAddress}: ${err.response?.status}`);
+    return null;
   }
+}
 
+// Try CoinCap
+async function fetchFromCoinCap(symbol) {
   try {
-    // 2. Try CoinCap
-    console.log(`🔄 Trying CoinCap for ${tokenSymbolOrAddress}`);
-    const coincapRes = await axios.get(`https://rest.coincap.io/v3/assets/${tokenSymbolOrAddress}`, {
-      headers: { Authorization: `Bearer ${process.env.COINCAP_API}` }
-    });
-    if (coincapRes.data.data && coincapRes.data.data.priceUsd) {
-      price = coincapRes.data.data.priceUsd;
-      console.log(`✅ CoinCap price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
-    }
+    const res = await axios.get(`${COINCAP_API}`);
+    const coins = res.data.data;
+    const match = coins.find(c => c.symbol.toLowerCase() === symbol.toLowerCase());
+    if (match) return parseFloat(match.priceUsd);
+    return null;
   } catch (err) {
-    console.log(`❌ CoinCap failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
+    console.warn(`⚠️ CoinCap error: ${err.response?.status}`);
+    return null;
   }
+}
 
+// Try Dexscreener
+async function fetchFromDexscreener(contractAddress) {
   try {
-    // 3. Try DexScreener
-    console.log(`🔄 Trying DexScreener for ${tokenSymbolOrAddress}`);
-    const dexRes = await axios.get(`https://api.dexscreener.com/latest/dex/pairs/bsc/${tokenSymbolOrAddress}`);
-    if (dexRes.data.pairs && dexRes.data.pairs[0]?.priceUsd) {
-      price = dexRes.data.pairs[0].priceUsd;
-      console.log(`✅ DexScreener price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
+    const res = await axios.get(`${DEXSCREENER_API}/${contractAddress}`);
+    const pairs = res.data.pairs;
+    if (pairs && pairs.length > 0) {
+      return parseFloat(pairs[0].priceUsd);
     }
+    return null;
   } catch (err) {
-    console.log(`❌ DexScreener failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
+    console.warn(`⚠️ Dexscreener error for ${contractAddress}: ${err.response?.status}`);
+    return null;
   }
+}
 
+// Try Moralis
+async function fetchFromMoralis(contractAddress) {
   try {
-    // 4. Try Moralis
-    console.log(`🔄 Trying Moralis for ${tokenSymbolOrAddress}`);
-    const moralisRes = await axios.get(`https://deep-index.moralis.io/api/v2/erc20/${tokenSymbolOrAddress}/price`, {
+    const res = await axios.get(`${MORALIS_API}/${contractAddress}/price`, {
       headers: { 'X-API-Key': MORALIS_API_KEY }
     });
-    if (moralisRes.data.usdPrice) {
-      price = moralisRes.data.usdPrice;
-      console.log(`✅ Moralis price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
-    }
+    return res.data.usdPrice;
   } catch (err) {
-    console.log(`❌ Moralis failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
+    console.warn(`⚠️ Moralis error for ${contractAddress}: ${err.response?.status}`);
+    return null;
   }
+}
 
-  try {
-    // 5. Try LiveCoinWatch
-    console.log(`🔄 Trying LiveCoinWatch for ${tokenSymbolOrAddress}`);
-    const livecoinwatchRes = await axios.post(`https://api.livecoinwatch.com/coins/single`, {
-      currency: 'USD',
-      code: tokenSymbolOrAddress.toUpperCase()
-    }, {
-      headers: {
-        'x-api-key': LIVECOINWATCH_API_KEY,
-        'content-type': 'application/json'
-      }
-    });
-    if (livecoinwatchRes.data.rate) {
-      price = livecoinwatchRes.data.rate;
-      console.log(`✅ LiveCoinWatch price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
-    }
-  } catch (err) {
-    console.log(`❌ LiveCoinWatch failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
+// 🧠 Main function: Smart price fetcher
+async function fetchPriceSmart(contractAddress, network = 'bsc', symbol = '') {
+  let price = null;
+
+  // Coingecko
+  price = await fetchFromCoingecko(contractAddress, network);
+  if (price) return price;
+  await delay(1000);
+
+  // CoinCap (only works by symbol)
+  if (symbol) {
+    price = await fetchFromCoinCap(symbol);
+    if (price) return price;
   }
+  await delay(1000);
 
-  try {
-    // 6. Try CoinAPI.io
-    console.log(`🔄 Trying CoinAPI for ${tokenSymbolOrAddress}`);
-    const coinapiRes = await axios.get(`https://rest.coinapi.io/v1/assets/${tokenSymbolOrAddress}`, {
-      headers: { 'X-CoinAPI-Key': COINAPI_KEY }
-    });
-    if (coinapiRes.data[0] && coinapiRes.data[0].price_usd) {
-      price = coinapiRes.data[0].price_usd;
-      console.log(`✅ CoinAPI price for ${tokenSymbolOrAddress}: $${price}`);
-      return price;
-    }
-  } catch (err) {
-    console.log(`❌ CoinAPI failed for ${tokenSymbolOrAddress}: ${err.response?.status}`);
-    await delay(300);
-  }
+  // Dexscreener
+  price = await fetchFromDexscreener(contractAddress);
+  if (price) return price;
+  await delay(1000);
 
-  console.log(`⚠️ No price found for ${tokenSymbolOrAddress}. Skipping.`);
+  // Moralis
+  price = await fetchFromMoralis(contractAddress);
+  if (price) return price;
+
+  // All failed
   return null;
 }
 
 module.exports = {
-  fetchPrice,
+  fetchPriceSmart
 };
