@@ -88,6 +88,10 @@ app.get('/api/import-solana', async (req, res) => {
   }
 });
 
+const adsRoutes = require('./routes/adsRoutes');
+app.use('/api/ads', adsRoutes);
+
+
 // ✅ API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/ads', adsRoutes);
