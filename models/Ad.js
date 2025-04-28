@@ -1,15 +1,14 @@
 const mongoose = require('mongoose');
 
 const AdSchema = new mongoose.Schema({
-  title: String,
-  type: { type: String, enum: ['banner', 'box', 'sidebar'], default: 'box' },
-  placement: { type: String }, // e.g., homepage, trendingPage, coinPage
-  imageUrl: String,
-  targetUrl: String,
-  startDate: Date,
-  endDate: Date,
-  isActive: { type: Boolean, default: true },
-  createdAt: { type: Date, default: Date.now }
-});
+  title: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+  linkUrl: { type: String, required: true },
+  page: { type: String, required: true }, // home, coin, profile, etc.
+  position: { type: String, required: true }, // header, sidebar, footer, between-content
+  network: { type: String, default: 'eth' }, // eth, bsc, sol, etc.
+  active: { type: Boolean, default: true },
+  expiryDate: { type: Date }, // Optional, if passed → not active
+}, { timestamps: true });
 
 module.exports = mongoose.model('Ad', AdSchema);
