@@ -1,9 +1,8 @@
-function isLPToken(name = '') {
-    const lpWords = ['LP', 'Pancake LPs', 'Cake-LP', 'Liquidity Pool', 'UNI-V2', 'SLP', 'Pair'];
-    return lpWords.some(word => name.toUpperCase().includes(word));
-  }
-  
-  module.exports = {
-    isLPToken,
-  };
-  
+// utils/tokenUtils.js
+
+function isLPToken(name) {
+  const lower = name.toLowerCase();
+  return lower.includes('lp') || lower.includes('liquidity') || lower.includes('pancake') || lower.includes('uniswap') || lower.includes('sushiswap');
+}
+
+module.exports = { isLPToken };
