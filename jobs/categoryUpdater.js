@@ -1,58 +1,81 @@
 // jobs/categoryUpdater.js
 
 const Coin = require('../models/Coin');
-const AutoCategory = require('../models/AutoCategory');
 
-const updateCategories = async () => {
-  console.log("⏳ Updating coin categories...");
-
+async function updateCategories() {
   try {
-    // 🟡 Trending: Top 20 coins by 24h volume
-    const trending = await Coin.find().sort({ volume24h: -1 }).limit(20);
-    await AutoCategory.findOneAndUpdate(
-      { category: 'trending' },
-      { coins: trending.map(c => c.contractAddress), updatedAt: new Date() },
-      { upsert: true }
-    );
+    console.log('⏳ Updating coin categories...');
 
-    // 🟢 Gainers: Top 20 coins by 24h price change
-    const gainers = await Coin.find().sort({ change24h: -1 }).limit(20);
-    await AutoCategory.findOneAndUpdate(
-      { category: 'gainers' },
-      { coins: gainers.map(c => c.contractAddress), updatedAt: new Date() },
-      { upsert: true }
-    );
+    const allCoins = await Coin.find({ price: { $gt: 0 }, volume: { $gt: 0 } });
 
-    // 🔴 Low Volume: bottom 20 coins by 24h volume
-    const lowVolume = await Coin.find().sort({ volume24h: 1 }).limit(20);
-    await AutoCategory.findOneAndUpdate(
-      { category: 'low-volume' },
-      { coins: lowVolume.map(c => c.contractAddress), updatedAt: new Date() },
-      { upsert: true }
-    );
+    if (allCoins.length === 0) {
+      console.warn('⚠️ No valid coins found for categories!');
+      return;
+    }
 
-    // 🆕 New: created in last 48 hours
-    const now = new Date();
-    const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-    const recent = await Coin.find({ createdAt: { $gte: twoDaysAgo } }).sort({ createdAt: -1 }).limit(20);
-    await AutoCategory.findOneAndUpdate(
-      { category: 'new' },
-      { coins: recent.map(c => c.contractAddress), updatedAt: new Date() },
-      { upsert: true }
-    );
+    // Trending = Top 20 coins by volume
+    const trending = [...allCoins]
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 20)
+      .map(c => c.contractAddress.toLowerCase());
 
-    // 🛡️ Trusted: has isTrusted = true or audit = "Passed"
-    const trusted = await Coin.find({ $or: [{ audit: "Passed" }, { isTrusted: true }] }).limit(20);
-    await AutoCategory.findOneAndUpdate(
-      { category: 'trusted' },
-      { coins: trusted.map(c => c.contractAddress), updatedAt: new Date() },
-      { upsert: true }
-    );
+    // Gainers = Top 20 coins by 24h Change %
+    const gainers = [...allCoins]
+      .filter(c => c.change24h > 0)
+      .sort((a, b) => b.change24h - a.change24h)
+      .slice(0, 20)
+      .map(c => c.contractAddress.toLowerCase());
 
-    console.log("✅ Categories updated!");
-  } catch (err) {
-    console.error("❌ Category updater error:", err.message);
+    // Recently Added = Last 20 added coins
+    const recentlyAdded = [...allCoins]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 20)
+      .map(c => c.contractAddress.toLowerCase());
+
+    // Low Volume = Coins with volume < $5000
+    const lowVolume = [...allCoins]
+      .filter(c => c.volume < 5000)
+      .slice(0, 20)
+      .map(c => c.contractAddress.toLowerCase());
+
+    // Trusted = Admin manually marks trusted coins (already field in Coin model)
+    const trusted = await Coin.find({ trusted: true }, 'contractAddress');
+    const trustedList = trusted.map(c => c.contractAddress.toLowerCase());
+
+    // Hot Pairs = Top coins by number of recent trades
+    // (for now random 20 from available ones)
+    const hotPairs = [...allCoins]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 20)
+      .map(c => c.contractAddress.toLowerCase());
+
+    // Save to global database settings
+    await updateGlobalCategory('trending', trending);
+    await updateGlobalCategory('gainers', gainers);
+    await updateGlobalCategory('recently_added', recentlyAdded);
+    await updateGlobalCategory('low_volume', lowVolume);
+    await updateGlobalCategory('trusted', trustedList);
+    await updateGlobalCategory('hot_pairs', hotPairs);
+
+    console.log('✅ Categories updated successfully!');
+  } catch (error) {
+    console.error('❌ Error updating categories:', error.message);
   }
-};
+}
+
+// Helper function to update Global Settings
+async function updateGlobalCategory(type, coinList) {
+  try {
+    const GlobalSettings = require('../models/GlobalSettings');
+
+    await GlobalSettings.updateOne(
+      { key: type },
+      { $set: { value: coinList } },
+      { upsert: true }
+    );
+  } catch (error) {
+    console.error(`❌ Failed to update global category ${type}:`, error.message);
+  }
+}
 
 module.exports = { updateCategories };
