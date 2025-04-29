@@ -2,17 +2,15 @@
 
 const { ethers } = require('ethers');
 const { FactoryABI } = require('../abis');
-const Coin = require('../models/Coin');
 const { enrichNewCoin } = require('../services/enrichNewCoin');
+const Coin = require('../models/Coin');
 
-// Network providers
 const providers = {
   bsc: new ethers.providers.JsonRpcProvider(process.env.BSC_RPC),
   eth: new ethers.providers.JsonRpcProvider(process.env.ETH_RPC),
   polygon: new ethers.providers.JsonRpcProvider(process.env.POLYGON_RPC),
 };
 
-// Factory contract addresses
 const FACTORY_ADDRESSES = {
   bsc: process.env.BSC_FACTORY,
   eth: process.env.ETH_FACTORY,
@@ -25,38 +23,39 @@ async function startCoinFetcher() {
   for (const [network, provider] of Object.entries(providers)) {
     const factoryAddress = FACTORY_ADDRESSES[network];
 
-    if (!factoryAddress) {
+    if (!factoryAddress || factoryAddress.length < 10) {
       console.warn(`⚠️ Missing factory address for ${network}, skipping...`);
       continue;
     }
 
     try {
       const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
-      const pairCreatedFilter = factory.filters.PairCreated();
+      const filter = factory.filters.PairCreated();
 
-      provider.on(pairCreatedFilter, async (token0, token1, pairAddress) => {
+      provider.on(filter, async (token0, token1, pairAddress, event) => {
         try {
-          console.log(`🆕 New pair detected on ${network}: ${pairAddress}`);
+          if (!token0 || !token1 || !pairAddress) {
+            console.warn(`⚠️ Invalid pair on ${network}:`, { token0, token1, pairAddress });
+            return;
+          }
+
+          console.log(`🆕 New Pair Created: ${pairAddress} (${token0}/${token1})`);
+
           const tokens = [token0.toLowerCase(), token1.toLowerCase()];
-
-          for (const address of tokens) {
-            const exists = await Coin.findOne({ contractAddress: address });
-
-            if (exists) {
-              console.log(`✅ Token already exists: ${address}`);
-              continue;
+          for (const token of tokens) {
+            const exists = await Coin.findOne({ contractAddress: token });
+            if (!exists) {
+              console.log(`🔍 Enriching token: ${token} on ${network}`);
+              await enrichNewCoin(token, network);
             }
-
-            console.log(`🔄 Enriching new token: ${address} on ${network}`);
-            await enrichNewCoin(address, network);
           }
         } catch (err) {
-          console.error(`❌ Error enriching pair on ${network}: ${err.message}`);
+          console.error(`❌ Error handling pair for ${network}:`, err.message);
         }
       });
 
     } catch (err) {
-      console.error(`❌ Failed to listen for pairs on ${network}: ${err.message}`);
+      console.error(`❌ Error setting up fetcher for ${network}:`, err.message);
     }
   }
 }
