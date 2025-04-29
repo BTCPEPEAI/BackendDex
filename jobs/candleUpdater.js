@@ -1,20 +1,25 @@
+// jobs/candleUpdater.js
+
 const Candle = require('../models/Candle');
 const TokenPair = require('../models/TokenPair');
 
+// Round timestamp to the nearest minute
 const roundToMinute = (d) => new Date(Math.floor(d.getTime() / 60000) * 60000);
 
-const updateCandles = async () => {
+async function updateCandles() {
   const pairs = await TokenPair.find();
 
-  for (const p of pairs) {
-    const now = new Date();
-    const time = roundToMinute(now);
+  const now = new Date();
+  const timestamp = roundToMinute(now);
 
-    const price = p.price || 0;
-    const volume = p.volumeUSD || 0;
+  for (const p of pairs) {
+    if (!p.pairAddress || !p.price) continue;
+
+    const price = Number(p.price) || 0;
+    const volume = Number(p.volumeUSD) || 0;
 
     await Candle.findOneAndUpdate(
-      { pairAddress: p.pairAddress, interval: '1m', timestamp: time },
+      { pairAddress: p.pairAddress, interval: '1m', timestamp },
       {
         $setOnInsert: {
           open: price,
@@ -30,7 +35,14 @@ const updateCandles = async () => {
     );
   }
 
-  console.log('🕒 Candlesticks updated');
-};
+  console.log('🕒 Candlesticks updated at', timestamp.toISOString());
+}
 
-module.exports = { updateCandles };
+// Auto-start every 1 minute
+function startCandleUpdater() {
+  updateCandles();
+  setInterval(updateCandles, 60 * 1000); // Every 1 minute
+  console.log('📊 Candle updater started...');
+}
+
+module.exports = { startCandleUpdater };
