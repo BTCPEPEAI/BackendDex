@@ -3,7 +3,6 @@
 const { ethers } = require('ethers');
 const Coin = require('../models/Coin');
 const { FactoryABI, PairABI } = require('../abis');
-const { getPriceFromPair } = require('../services/livePriceReader');
 
 const providers = {
   bsc: new ethers.providers.JsonRpcProvider(process.env.BSC_RPC),
@@ -18,68 +17,89 @@ const FACTORIES = {
 };
 
 const BASES = {
-  bsc: process.env.BSC_BASE_TOKEN,      // WBNB
-  eth: process.env.ETH_BASE_TOKEN,      // WETH
-  polygon: process.env.POLYGON_BASE_TOKEN, // WMATIC
+  bsc: process.env.BSC_BASE_TOKEN,
+  eth: process.env.ETH_BASE_TOKEN,
+  polygon: process.env.POLYGON_BASE_TOKEN,
 };
 
-async function updatePrices() {
+async function getPairAddress(factory, tokenA, tokenB) {
   try {
-    const coins = await Coin.find({});
+    const pairAddress = await factory.getPair(tokenA, tokenB);
+    if (pairAddress === ethers.constants.AddressZero) return null;
+    return pairAddress;
+  } catch (err) {
+    console.warn('⚠️ getPair failed:', err.message);
+    return null;
+  }
+}
 
-    for (const coin of coins) {
-      const { contractAddress, network, symbol } = coin;
+async function getPriceFromPair(pair, tokenAddress) {
+  try {
+    const [reserve0, reserve1] = await pair.getReserves();
+    const token0 = await pair.token0();
 
-      const provider = providers[network];
-      const factoryAddress = FACTORIES[network];
-      const baseToken = BASES[network];
+    const r0 = parseFloat(ethers.utils.formatUnits(reserve0, 18));
+    const r1 = parseFloat(ethers.utils.formatUnits(reserve1, 18));
 
-      if (!provider || !factoryAddress || !baseToken) {
-        console.warn(`⚠️ Missing provider or factory/base for ${network}`);
-        continue;
-      }
-
-      try {
-        const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
-        const pairAddress = await factory.getPair(contractAddress, baseToken);
-
-        if (!pairAddress || pairAddress === ethers.constants.AddressZero) {
-          console.warn(`⚠️ No DEX pair found for ${symbol} (${contractAddress})`);
-          continue;
-        }
-
-        const pair = new ethers.Contract(pairAddress, PairABI, provider);
-        const price = await getPriceFromPair(pair, contractAddress);
-
-        if (!price || isNaN(price) || price <= 0) {
-          console.warn(`⚠️ Invalid price for ${symbol}`);
-          continue;
-        }
-
-        await Coin.updateOne(
-          { _id: coin._id },
-          {
-            $set: {
-              price: parseFloat(price.toFixed(8)),
-              updatedAt: new Date()
-            }
-          }
-        );
-
-        console.log(`✅ ${symbol} updated → $${price.toFixed(6)}`);
-      } catch (err) {
-        console.warn(`❌ Price update failed for ${symbol}: ${err.message}`);
-      }
+    if (tokenAddress.toLowerCase() === token0.toLowerCase()) {
+      return r1 / r0;
+    } else {
+      return r0 / r1;
     }
   } catch (err) {
-    console.error('❌ Error in price updater:', err.message);
+    console.warn('⚠️ Failed to read reserves for pair:', err.message);
+    return null;
+  }
+}
+
+async function updatePrices() {
+  const coins = await Coin.find({});
+
+  for (const coin of coins) {
+    const { contractAddress, network, symbol } = coin;
+    const provider = providers[network];
+    const factoryAddress = FACTORIES[network];
+    const baseToken = BASES[network];
+
+    if (!provider || !factoryAddress || !baseToken) {
+      console.warn(`⚠️ Missing provider or factory/base for ${network}`);
+      continue;
+    }
+
+    if (contractAddress.toLowerCase() === baseToken.toLowerCase()) {
+      console.warn(`⚠️ Skipping base token: ${symbol}`);
+      continue;
+    }
+
+    const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
+    const pairAddress = await getPairAddress(factory, contractAddress, baseToken);
+
+    if (!pairAddress) {
+      console.warn(`⚠️ No DEX pair found for ${symbol} (${contractAddress})`);
+      continue;
+    }
+
+    const pair = new ethers.Contract(pairAddress, PairABI, provider);
+    const price = await getPriceFromPair(pair, contractAddress);
+
+    if (!price || isNaN(price)) {
+      console.warn(`⚠️ Invalid price for ${symbol}`);
+      continue;
+    }
+
+    await Coin.updateOne(
+      { _id: coin._id },
+      { $set: { price: price, updatedAt: new Date() } }
+    );
+
+    console.log(`✅ Price updated: ${symbol} → $${price.toFixed(6)}`);
   }
 }
 
 function startPriceUpdater() {
   console.log('⏱️ Price updater started (on-chain)...');
   updatePrices();
-  setInterval(updatePrices, 5000); // Every 5 seconds
+  setInterval(updatePrices, 60000); // Update every 60 seconds
 }
 
 module.exports = { startPriceUpdater };
