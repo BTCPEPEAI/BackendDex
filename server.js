@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+const { cleanDatabase } = require('./jobs/cleaner'); // ✅ Import cleaner
 
 // ✅ Initialize Express app and HTTP server
 const app = express();
@@ -62,6 +63,17 @@ app.get('/api/import-solana', async (req, res) => {
   } catch (error) {
     console.error('❌ Error importing Solana tokens:', error);
     res.status(500).send('❌ Failed to import Solana tokens.');
+  }
+});
+
+// ✅ Admin Cleaner Route
+app.get('/api/admin/clean-database', async (req, res) => {
+  try {
+    await cleanDatabase();
+    res.json({ success: true, message: 'Database cleaned successfully!' });
+  } catch (error) {
+    console.error('❌ Cleaner error:', error.message);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
