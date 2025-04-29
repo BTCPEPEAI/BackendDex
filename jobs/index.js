@@ -1,33 +1,29 @@
-const { startPriceUpdater } = require('./priceUpdater');
-const { startTradeListener } = require('./tradeListener');
-const { updateCandles } = require('./candleUpdater');
-const { startCoinFetcher } = require('./coinFetcher');
-const { updateCategories } = require('./categoryUpdater');
+const { startLivePriceUpdater } = require('../services/livePriceFetcher'); // <== NEW import
 
-async function startJobs() {
+
+function startJobs() {
+  console.log('🚀 Starting background jobs...');
+
   try {
-    console.log('🚀 Starting background jobs...');
+    startPriceUpdater();     // (Old normal price fallback)
+    startTradeListener();    // Listening trades
+    startCoinFetcher();      // Fetch new coins
+    startCoinIndexer();      // Index tokens
+    updateCandles();         // Candlestick chart updates
+    updateCategories();      // Update Trending, Gainers, etc.
 
-    startPriceUpdater();
-    startTradeListener();
-    startCoinFetcher();
-    updateCandles(); // immediate run once
-    updateCategories(); // immediate run once
+    // 🔥 NEW — Start the LIVE price updater!
+    startLivePriceUpdater();  // <== ADD THIS
 
-    // Schedule updates
-    setInterval(() => {
-      updateCandles();
-    }, 60 * 1000); // every 1 minute
-
-    setInterval(() => {
-      updateCategories();
-    }, 2 * 60 * 1000); // every 2 minutes
+    // Schedule periodic updates
+    setInterval(updateCandles, 60 * 1000);         // every 1 min
+    setInterval(updateCategories, 2 * 60 * 1000);  // every 2 min
 
     console.log('✅ Background jobs started successfully');
   } catch (error) {
     console.error('❌ Error starting background jobs:', error.message);
-    throw error;
   }
 }
+
 
 module.exports = { startJobs };
