@@ -18,7 +18,7 @@ function startJobs() {
     startCoinFetcher();          // ✅ Auto-fetch new coins
     startCandleUpdater();        // ✅ Start candle loop
     updateCategories();          // ✅ Initial category update
-    cleanDatabase();             // ✅ One-time clean on boot
+    cleanDatabase();             // ✅← temporarily disable this line
 
     // Optional: schedule categories update every 2 min
     setInterval(updateCategories, 2 * 60 * 1000);
