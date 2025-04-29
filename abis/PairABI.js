@@ -13,7 +13,6 @@ module.exports = [
     "type": "event"
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "getReserves",
     "outputs": [
@@ -21,7 +20,6 @@ module.exports = [
       { "internalType": "uint112", "name": "reserve1", "type": "uint112" },
       { "internalType": "uint32", "name": "blockTimestampLast", "type": "uint32" }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function"
   }
