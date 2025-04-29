@@ -1,5 +1,3 @@
-// jobs/priceUpdater.js
-
 const { ethers } = require('ethers');
 const Coin = require('../models/Coin');
 const { FactoryABI, PairABI } = require('../abis');
@@ -22,33 +20,31 @@ const BASES = {
   polygon: process.env.POLYGON_BASE_TOKEN,
 };
 
-async function getPairAddress(factory, tokenA, tokenB) {
+async function getPair(factory, tokenA, tokenB) {
   try {
     const pairAddress = await factory.getPair(tokenA, tokenB);
     if (pairAddress === ethers.constants.AddressZero) return null;
     return pairAddress;
   } catch (err) {
-    console.warn('⚠️ getPair failed:', err.message);
+    console.error(`❌ getPair failed:`, err.message);
     return null;
   }
 }
 
-async function getPriceFromPair(pair, tokenAddress) {
+async function getPriceFromPair(pairContract, tokenAddress) {
   try {
-    const [reserve0, reserve1] = await pair.getReserves();
-    const token0 = await pair.token0();
-
-    const r0 = parseFloat(ethers.utils.formatUnits(reserve0, 18));
-    const r1 = parseFloat(ethers.utils.formatUnits(reserve1, 18));
+    const [reserve0, reserve1] = await pairContract.getReserves();
+    const token0 = await pairContract.token0();
+    const token1 = await pairContract.token1();
 
     if (tokenAddress.toLowerCase() === token0.toLowerCase()) {
-      return r1 / r0;
+      return Number(reserve1) / Number(reserve0);
     } else {
-      return r0 / r1;
+      return Number(reserve0) / Number(reserve1);
     }
   } catch (err) {
-    console.warn('⚠️ Failed to read reserves for pair:', err.message);
-    return null;
+    console.warn(`⚠️ Failed to read reserves for pair:`, err.message);
+    return 0;
   }
 }
 
@@ -62,18 +58,18 @@ async function updatePrices() {
     const baseToken = BASES[network];
 
     if (!provider || !factoryAddress || !baseToken) {
-      console.warn(`⚠️ Missing provider or factory/base for ${network}`);
+      console.warn(`⚠️ Missing provider or config for ${network}`);
       continue;
     }
 
+    // Don't price base tokens against themselves
     if (contractAddress.toLowerCase() === baseToken.toLowerCase()) {
       console.warn(`⚠️ Skipping base token: ${symbol}`);
       continue;
     }
 
     const factory = new ethers.Contract(factoryAddress, FactoryABI, provider);
-    const pairAddress = await getPairAddress(factory, contractAddress, baseToken);
-
+    const pairAddress = await getPair(factory, contractAddress, baseToken);
     if (!pairAddress) {
       console.warn(`⚠️ No DEX pair found for ${symbol} (${contractAddress})`);
       continue;
@@ -82,24 +78,22 @@ async function updatePrices() {
     const pair = new ethers.Contract(pairAddress, PairABI, provider);
     const price = await getPriceFromPair(pair, contractAddress);
 
-    if (!price || isNaN(price)) {
+    if (price > 0) {
+      await Coin.updateOne(
+        { _id: coin._id },
+        { $set: { price, updatedAt: new Date() } }
+      );
+      console.log(`✅ Price updated: ${symbol} → $${price.toFixed(6)}`);
+    } else {
       console.warn(`⚠️ Invalid price for ${symbol}`);
-      continue;
     }
-
-    await Coin.updateOne(
-      { _id: coin._id },
-      { $set: { price: price, updatedAt: new Date() } }
-    );
-
-    console.log(`✅ Price updated: ${symbol} → $${price.toFixed(6)}`);
   }
 }
 
 function startPriceUpdater() {
   console.log('⏱️ Price updater started (on-chain)...');
   updatePrices();
-  setInterval(updatePrices, 60000); // Update every 60 seconds
+  setInterval(updatePrices, 8000); // every 8 seconds
 }
 
 module.exports = { startPriceUpdater };
