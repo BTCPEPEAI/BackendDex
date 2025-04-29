@@ -3,14 +3,12 @@
 const { ethers } = require('ethers');
 const Coin = require('../models/Coin');
 
-// ERC20 ABI to fetch name/symbol/supply
 const ERC20_ABI = [
   "function name() view returns (string)",
   "function symbol() view returns (string)",
-  "function totalSupply() view returns (uint256)",
+  "function totalSupply() view returns (uint256)"
 ];
 
-// Setup Providers
 const providers = {
   bsc: new ethers.providers.JsonRpcProvider(process.env.BSC_RPC),
   eth: new ethers.providers.JsonRpcProvider(process.env.ETH_RPC),
@@ -18,45 +16,41 @@ const providers = {
 };
 
 async function enrichNewCoin(address, network) {
+  const provider = providers[network];
+  if (!provider) {
+    console.warn(`⚠️ Unsupported network: ${network}`);
+    return;
+  }
+
+  const token = new ethers.Contract(address, ERC20_ABI, provider);
+
   try {
-    const provider = providers[network];
-    if (!provider) {
-      console.warn(`⚠️ Unsupported network: ${network}`);
+    const name = await token.name();
+    const symbol = await token.symbol();
+    const totalSupply = await token.totalSupply();
+
+    const lowerName = name?.toLowerCase() || '';
+    const lowerSymbol = symbol?.toLowerCase() || '';
+
+    // Skip LP or spam coins
+    if (
+      lowerName.includes('lp') || lowerSymbol.includes('lp') ||
+      lowerName.includes('pancake') || lowerSymbol.includes('pancake') ||
+      lowerName.includes('uniswap') || lowerSymbol.includes('uni') ||
+      lowerSymbol.length > 20 || symbol.length === 0
+    ) {
+      console.warn(`⚠️ Skipping LP or invalid token: ${name} (${symbol})`);
       return;
     }
 
-    const token = new ethers.Contract(address, ERC20_ABI, provider);
-
-    let name = '', symbol = '', totalSupply = 0;
-
-    try {
-      name = await token.name();
-      symbol = await token.symbol();
-      totalSupply = await token.totalSupply();
-    } catch (err) {
-      console.warn(`⚠️ Couldn't fetch details for token: ${address}`);
-      return; // skip if can't fetch
-    }
-
-    // Skip LP tokens
-    const lowerName = name.toLowerCase();
-    const lowerSymbol = symbol.toLowerCase();
-
-    if (lowerName.includes('lp') || lowerSymbol.includes('lp') || lowerName.includes('pancake') || lowerSymbol.includes('pancake')) {
-      console.warn(`⚠️ Skipping LP token: ${name} (${symbol})`);
+    if (!name || !symbol || totalSupply.isZero()) {
+      console.warn(`⚠️ Invalid token data: ${address}`);
       return;
     }
 
-    // Check if totalSupply makes sense
-    if (!name || !symbol || Number(totalSupply) === 0) {
-      console.warn(`⚠️ Invalid token, skipping: ${address}`);
-      return;
-    }
-
-    // Check if already saved
-    const existing = await Coin.findOne({ contractAddress: address.toLowerCase() });
-    if (existing) {
-      console.log(`ℹ️ Coin already exists: ${symbol}`);
+    const exists = await Coin.findOne({ contractAddress: address.toLowerCase() });
+    if (exists) {
+      console.log(`ℹ️ Already exists: ${symbol}`);
       return;
     }
 
@@ -72,9 +66,8 @@ async function enrichNewCoin(address, network) {
 
     await coin.save();
     console.log(`✅ Coin saved: ${name} (${symbol})`);
-
-  } catch (error) {
-    console.error(`❌ Error enriching token ${address}:`, error.message);
+  } catch (err) {
+    console.warn(`⚠️ Couldn't fetch token: ${address} - ${err.message}`);
   }
 }
 
