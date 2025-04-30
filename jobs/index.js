@@ -7,6 +7,8 @@ const { startCoinFetcher } = require('./coinFetcher');
 const { updateCategories } = require('./categoryUpdater');
 const { startCandleUpdater } = require('./candleUpdater');
 const { cleanDatabase } = require('./cleaner');
+const { startTradeIndexer } = require('./tradeindexer');
+
 
 function startJobs() {
   console.log('🚀 Starting background jobs...');
@@ -18,8 +20,8 @@ function startJobs() {
     startCoinFetcher();          // ✅ Auto-fetch new coins
     startCandleUpdater();        // ✅ Start candle loop
     updateCategories();          // ✅ Initial category update
-    cleanDatabase();             // ✅← temporarily disable this line
-
+    cleanDatabase();             // ✅ One-time clean on boot
+    startTradeIndexer();
     // Optional: schedule categories update every 2 min
     setInterval(updateCategories, 2 * 60 * 1000);
 
