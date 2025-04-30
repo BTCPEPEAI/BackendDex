@@ -1,44 +1,59 @@
+const mongoose = require('mongoose');
 const Trade = require('../models/Trade');
 const Candle = require('../models/Candle');
 
-const INTERVAL = 60 * 1000; // 1 minute
+async function generateCandles() {
+  try {
+    console.log('🕯️ Generating OHLC candles...');
 
-const generateCandles = async () => {
-  const now = new Date();
-  const oneMinuteAgo = new Date(now - INTERVAL);
+    const now = new Date();
+    const interval = 60 * 1000; // 1-minute candles
+    const cutoff = new Date(now.getTime() - interval);
 
-  const trades = await Trade.find({ timestamp: { $gte: oneMinuteAgo } });
+    const trades = await Trade.aggregate([
+      { $match: { timestamp: { $gte: cutoff } } },
+      {
+        $group: {
+          _id: {
+            pair: '$pairAddress',
+            interval: {
+              $toDate: {
+                $subtract: [{ $toLong: '$timestamp' }, { $mod: [{ $toLong: '$timestamp' }, interval] }]
+              }
+            }
+          },
+          open: { $first: '$price' },
+          close: { $last: '$price' },
+          high: { $max: '$price' },
+          low: { $min: '$price' },
+          volume: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
 
-  const grouped = {};
+    for (const candle of trades) {
+      const { pair, interval } = candle._id;
+      const { open, close, high, low, volume, count } = candle;
 
-  for (const t of trades) {
-    if (!grouped[t.pairAddress]) grouped[t.pairAddress] = [];
-    grouped[t.pairAddress].push(t);
+      await Candle.updateOne(
+        { pairAddress: pair, interval, timeframe: '1m' },
+        { $set: { open, close, high, low, volume, count, updatedAt: new Date() } },
+        { upsert: true }
+      );
+    }
+
+    console.log(`✅ Candle generation complete: ${trades.length} candles`);
+  } catch (error) {
+    console.error('❌ Error generating candles:', error.message);
   }
+}
 
-  for (const [pair, txns] of Object.entries(grouped)) {
-    const prices = txns.map(t => t.amountOut / t.amountIn);
-    if (prices.length === 0) continue;
+// Run every minute
+function startCandleGenerator() {
+  console.log('📊 Candle updater started...');
+  generateCandles();
+  setInterval(generateCandles, 60 * 1000);
+}
 
-    const open = prices[0];
-    const close = prices[prices.length - 1];
-    const high = Math.max(...prices);
-    const low = Math.min(...prices);
-    const volume = txns.reduce((sum, t) => sum + t.amountIn, 0);
-
-    await Candle.create({
-      pairAddress: pair,
-      interval: '1m',
-      open,
-      high,
-      low,
-      close,
-      volume,
-      timestamp: now
-    });
-
-    console.log(`🕯️ 1m Candle created for ${pair}`);
-  }
-};
-
-module.exports = { generateCandles };
+module.exports = { startCandleGenerator };
