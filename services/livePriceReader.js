@@ -1,102 +1,43 @@
 // services/livePriceReader.js
 
 const { ethers } = require('ethers');
-const { PairABI } = require('../abis');
 
-// Factory routers (add more if needed)
-const routers = {
-  bsc: {
-    rpc: process.env.BSC_RPC,
-    tokens: {
-      stable: '0x55d398326f99059fF775485246999027B3197955', // USDT
-      wrapped: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', // WBNB
-    }
-  },
-  eth: {
-    rpc: process.env.ETH_RPC,
-    tokens: {
-      stable: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
-      wrapped: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-    }
-  },
-  polygon: {
-    rpc: process.env.POLYGON_RPC,
-    tokens: {
-      stable: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // USDC
-      wrapped: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', // WETH
-    }
-  }
-};
+// Minimal ABI to fetch reserves and token addresses
+const PAIR_ABI = [
+  'function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)',
+  'function token0() view returns (address)',
+  'function token1() view returns (address)'
+];
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function getPriceFromPair(tokenAddress, network = 'bsc') {
-  const net = routers[network];
-  if (!net) {
-    console.warn(`⚠️ Unknown network: ${network}`);
-    return null;
-  }
-
-  const provider = new ethers.providers.JsonRpcProvider(net.rpc);
-
-  const referenceToken = net.tokens.stable;
-  const wrappedToken = net.tokens.wrapped;
-
-  const pairsToTry = [
-    [tokenAddress, referenceToken],
-    [tokenAddress, wrappedToken],
-  ];
-
-  for (const [token0, token1] of pairsToTry) {
-    const pairAddress = await findPairAddress(provider, token0, token1);
-    if (!pairAddress) continue;
-
-    const price = await readPriceFromPair(provider, pairAddress, token0, token1);
-    if (price) return price;
-
-    await sleep(500); // Delay between tries
-  }
-
-  return null;
-}
-
-async function findPairAddress(provider, tokenA, tokenB) {
+/**
+ * Get price of a token from a liquidity pair
+ * @param {Object} provider - ethers.js provider
+ * @param {string} pairAddress - Address of the LP token
+ * @param {string} tokenAddress - Address of the token to price
+ * @returns {number|null} - Price or null if error
+ */
+async function getPriceFromPair(provider, pairAddress, tokenAddress) {
   try {
-    const factory = new ethers.Contract(
-      process.env.BSC_FACTORY, // fallback to BSC
-      [
-        'function getPair(address tokenA, address tokenB) external view returns (address pair)'
-      ],
-      provider
-    );
+    const pair = new ethers.Contract(pairAddress, PAIR_ABI, provider);
 
-    const pair = await factory.getPair(tokenA, tokenB);
-    if (pair === ethers.constants.AddressZero) return null;
-    return pair;
-  } catch (err) {
-    console.error(`❌ Failed to get pair address: ${err.message}`);
-    return null;
-  }
-}
-
-async function readPriceFromPair(provider, pairAddress, token0, token1) {
-  try {
-    const pair = new ethers.Contract(pairAddress, PairABI, provider);
     const [reserve0, reserve1] = await pair.getReserves();
-    const token0Addr = await pair.token0();
-    const token1Addr = await pair.token1();
+    const token0 = await pair.token0();
+    const token1 = await pair.token1();
 
-    const isOrderCorrect = token0.toLowerCase() === token0Addr.toLowerCase();
+    if (!reserve0 || !reserve1) {
+      console.warn(`⚠️ Invalid reserves for pair ${pairAddress}`);
+      return null;
+    }
 
-    const price = isOrderCorrect
-      ? reserve1 / reserve0
-      : reserve0 / reserve1;
+    const isToken0 = tokenAddress.toLowerCase() === token0.toLowerCase();
+    const price = isToken0
+      ? Number(reserve1) / Number(reserve0)
+      : Number(reserve0) / Number(reserve1);
 
-    return price > 0 && price < 1000000 ? price : null;
+    if (!price || price <= 0 || isNaN(price)) return null;
+    return price;
   } catch (err) {
-    console.warn(`⚠️ Error reading price from pair ${pairAddress}:`, err.message);
+    console.error(`❌ Error reading price from ${pairAddress}: ${err.message}`);
     return null;
   }
 }
