@@ -67,3 +67,5 @@ async function startCoinFetcher() {
 }
 
 module.exports = { startCoinFetcher };
+
+
